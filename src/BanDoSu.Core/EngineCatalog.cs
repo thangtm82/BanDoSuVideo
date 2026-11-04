@@ -213,6 +213,30 @@ public sealed class EngineCatalog
                         CopyFiles(sourceSkill, destination, ct);
                 }
             }
+            // Terrain's video-authoring instructions are shipped beside kit/.
+            // Copy only the compact skill and references, NOT kit/, projects/,
+            // node_modules or other bundled renderer files.
+            var authorRoot = Path.Combine(extraction, "skills", "lam-video-terrain");
+            if (File.Exists(Path.Combine(authorRoot, "SKILL.md")))
+            {
+                var target = Path.Combine(InstallationsRoot, installationId,
+                    "skills", "lam-video-terrain");
+                Directory.CreateDirectory(target);
+                File.Copy(Path.Combine(authorRoot, "SKILL.md"),
+                    Path.Combine(target, "SKILL.md"), overwrite: false);
+                var references = Path.Combine(authorRoot, "references");
+                if (Directory.Exists(references))
+                {
+                    var targetRefs = Path.Combine(target, "references");
+                    Directory.CreateDirectory(targetRefs);
+                    foreach (var file in Directory.GetFiles(references, "*.md"))
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        File.Copy(file, Path.Combine(targetRefs, Path.GetFileName(file)),
+                            overwrite: false);
+                    }
+                }
+            }
             return installed;
         }
         finally

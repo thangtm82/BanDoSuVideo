@@ -377,6 +377,9 @@ try
         AddFile(archive, prefix + "packs/terrain/pack.js", "// terrain pack");
         AddFile(archive, prefix + "projects/private-voice/1.mp3", "private data omitted");
         AddFile(archive, prefix + "node_modules/huge.txt", "npm dependency omitted");
+        AddFile(archive, "skills/lam-video-terrain/SKILL.md", "Terrain video skill");
+        AddFile(archive, "skills/lam-video-terrain/references/mau-canh.md", "Terrain visual examples");
+        AddFile(archive, "skills/lam-video-terrain/references/phong-cach.md", "Terrain appearance rules");
         AddFile(archive, "skills/kich-ban-terrain/SKILL.md", "Terrain script skill");
         AddFile(archive, "skills/kich-ban-terrain/references/cau-truc.md", "9 nhịp Terrain");
     }
@@ -395,6 +398,11 @@ try
         "Multi-Pack importer skips user projects and npm caches");
     Check(File.Exists(Path.Combine(terrainEngine, "skills", "kich-ban-terrain", "SKILL.md")),
         "Terrain authoring skill imported from ZIP");
+    Check(File.Exists(Path.Combine(terrainEngine, "skills", "lam-video-terrain",
+        "references", "mau-canh.md")),
+        "Terrain Scene Builder references imported next to the engine");
+    Check(!Directory.Exists(Path.Combine(terrainEngine, "skills", "lam-video-terrain", "kit")),
+        "Terrain authoring references do not duplicate bundled kit");
     Check(File.Exists(Path.Combine(engine, "packs", "bando", "pack.js")),
         "Original bando engine remains untouched");
 
@@ -484,6 +492,98 @@ try
     try { projects.ImportExternalProjectToWorkspace(unpackedExample); }
     catch (IOException) { exampleCollision = true; }
     Check(exampleCollision, "Import cannot overwrite an existing workspace project");
+
+    // Grounded Terrain AI Scene Builder: no real API calls or project writes
+    // until user explicitly confirms the generated candidate.
+    var aiTerrainProject = Path.Combine(root, "terrain-ai-test");
+    var terrainSlug = Path.GetFileName(aiTerrainProject);
+    Directory.CreateDirectory(Path.Combine(aiTerrainProject, "story"));
+    ProjectFiles.SaveText(Path.Combine(aiTerrainProject, "config.json"),
+        "{\"pack\":\"terrain\",\"lang\":\"en\"}");
+    ProjectFiles.SaveText(Path.Combine(aiTerrainProject, "03-HINH-" + terrainSlug + ".md"),
+        "A schematic training battlefield; coordinates are unknown, never claim real DEM.");
+    var terrainDraft = """
+    {"duration":11,"shots":[
+      {"id":"s001","start":0,"end":4.33,"line":"Introduce the battlefield.","original_marker":9},
+      {"id":"s002","start":4.33,"end":11,"line":"The camera follows the hill."}
+    ]}
+    """;
+    var draftPath = Path.Combine(aiTerrainProject, "story", "shots.json");
+    ProjectFiles.SaveText(draftPath, terrainDraft);
+    var testTerrainEngine = Path.Combine(root, "terrain-ai-engine");
+    var referenceRoot = Path.Combine(testTerrainEngine, "skills", "lam-video-terrain", "references");
+    Directory.CreateDirectory(referenceRoot);
+    ProjectFiles.SaveText(Path.Combine(referenceRoot, "mau-canh.md"),
+        "Use tw camera c/dist/az/el, worlds size and units.");
+    ProjectFiles.SaveText(Path.Combine(referenceRoot, "phong-cach.md"),
+        "Terrain is schematic; avoid imaginary GPS coordinates.");
+    var fakeCalls = 0;
+    Task<string> CompleteTerrain(string prompt, CancellationToken ct)
+    {
+        fakeCalls++;
+        return Task.FromResult(prompt.Contains("NHIỆM VỤ WORLDS", StringComparison.Ordinal)
+            ? """
+              {"worlds":{"hills":{"size":[2000,1500],
+              "hills":[{"p":[20,20],"r":100,"h":40}],
+              "units":[{"id":"blue","side":"blue","kind":"pawn","p":[0,0]}]}}}
+              """
+            : """
+              {"shots":[
+               {"id":"s001","tpl":"tw",
+                "args":{"world":"hills",
+                "cam":{"c":[0,0],"dist":900,"az":0,"el":60},
+                "tags":[{"t":"Terrain schematic"}]}},
+               {"id":"s002","tpl":"tw",
+                "args":{"world":"hills",
+                "cam":{"c":[40,0],"dist":450,"az":30,"el":35},
+                "do":[{"show":"blue","at":0.5}],
+                "tags":[{"t":"Hill movement"}]}}]}
+              """);
+    }
+    var terrainAssistant = new AiScriptStudio(skillFixture);
+    var terrainBuilder = new AiTerrainSceneBuilder(terrainAssistant, CompleteTerrain);
+    var terrainRequest = new AiScriptRequest(AiScriptProvider.Custom, "fake-model", "",
+        "Terrain fixture", 12, "http://127.0.0.1:8080/v1");
+    var candidateTerrain = terrainBuilder.GenerateAsync(terrainRequest,
+        aiTerrainProject, testTerrainEngine).GetAwaiter().GetResult();
+    Check(fakeCalls == 2, "AI Terrain uses worlds + batched shots completion");
+    Check(candidateTerrain.Root["worlds"]?["hills"]?["dem"] is null,
+        "No fabricated DEM coordinates when the plan has none");
+    Check(candidateTerrain.Rows.Count == 2 && candidateTerrain.Rows[0].Template == "tw" &&
+          candidateTerrain.Rows[1].Template == "tw",
+        "AI Terrain assigns valid 3D templates to all scenes");
+    Check(candidateTerrain.Rows[0].Start == 0 &&
+          candidateTerrain.Rows[0].End == 4.33 &&
+          candidateTerrain.Rows[1].Line == "The camera follows the hill." &&
+          candidateTerrain.Root["shots"]?[0]?["original_marker"]?.ToString() == "9",
+        "AI Terrain preserves timeline, voice and unknown scene metadata");
+    Check(File.ReadAllText(draftPath) == terrainDraft &&
+          !Directory.GetFiles(Path.Combine(aiTerrainProject, "story"), "*.backup-*").Any(),
+        "AI Terrain generation does not overwrite scenes without approval");
+    AiTerrainSceneBuilder.SaveWithBackup(aiTerrainProject, candidateTerrain);
+    Check(File.ReadAllText(draftPath).Contains("\"worlds\"") &&
+          Directory.GetFiles(Path.Combine(aiTerrainProject, "story"), "shots.json.backup-*").Length == 1,
+        "AI Terrain writes generated scenes with timestamped backup");
+    var concurrentEditBlocked = false;
+    try { AiTerrainSceneBuilder.SaveWithBackup(aiTerrainProject, candidateTerrain, terrainDraft); }
+    catch (IOException) { concurrentEditBlocked = true; }
+    Check(concurrentEditBlocked &&
+          Directory.GetFiles(Path.Combine(aiTerrainProject, "story"), "shots.json.backup-*").Length == 1,
+        "AI Terrain rejects stale save without a second backup");
+
+
+    Task<string> InvalidScene(string prompt, CancellationToken ct) =>
+        Task.FromResult(prompt.Contains("NHIỆM VỤ WORLDS")
+            ? "{\"worlds\":{\"hills\":{\"size\":[1000,800]}}}"
+            : "{\"shots\":[{\"id\":\"s001\",\"tpl\":\"map\",\"args\":{}},{\"id\":\"s002\",\"tpl\":\"tw\",\"args\":{}}]}");
+    var invalidRejected = false;
+    try
+    {
+        new AiTerrainSceneBuilder(terrainAssistant, InvalidScene)
+            .GenerateAsync(terrainRequest, aiTerrainProject, testTerrainEngine).GetAwaiter().GetResult();
+    }
+    catch (InvalidDataException) { invalidRejected = true; }
+    Check(invalidRejected, "AI Terrain rejects unsupported templates without modifying project");
 
     Console.WriteLine("PASS: all workspace/export smoke assertions.");
 }

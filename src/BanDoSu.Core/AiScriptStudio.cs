@@ -217,6 +217,19 @@ public sealed class AiScriptStudio
             _ = AiEndpoint.Resolve(req.BaseUrl ?? "", req.CustomEndpoint);
     }
 
+    /// <summary>Reusable non-streaming completion for grounded H2 scene authoring.
+    /// Uses the same OpenAI/Gemini/Custom settings as AI Kịch bản.</summary>
+    public Task<string> CompletePromptAsync(AiScriptRequest request, string prompt,
+        CancellationToken ct = default, int maxTokens = 12000)
+    {
+        if (string.IsNullOrWhiteSpace(request.Model))
+            throw new ArgumentException("Chưa chọn model AI.");
+        ValidateRequest(request);
+        if (maxTokens is < 64 or > 20000)
+            throw new ArgumentOutOfRangeException(nameof(maxTokens));
+        return CompleteAsync(request, prompt, ct, maxTokens);
+    }
+
     /// <summary>Issues one small real request without generating or saving a script.</summary>
     public async Task<string> TestConnectionAsync(AiScriptRequest request, CancellationToken ct = default)
     {

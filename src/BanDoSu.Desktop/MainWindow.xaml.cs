@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<EnvironmentRow> _environmentRows = new();
     private CancellationTokenSource? _environmentCts;
     private CancellationTokenSource? _aiCts;
+    private CancellationTokenSource? _terrainAiCts;
     private CancellationTokenSource? _ttsCts;
     private ITtsSynthesisProvider? _ttsProvider = null; // Replaced by an adapter when TTS API is supplied.
     private sealed record EnvironmentRow(DependencyKind Kind, string Name, string Status, string Details);
@@ -760,6 +761,111 @@ public partial class MainWindow : Window
         await ExecuteAsync((log, ct) => _commands.DownloadTerrainAsync(_selected.Name, log, ct),
             "Tải DEM Terrain");
     }
+
+    private async void AiBuildTerrainClick(object sender, RoutedEventArgs e)
+    {
+        if (_selected is null)
+        {
+            Alert("Hãy chọn dự án Terrain ở tab Dự án trước.");
+            MainTabs.SelectedIndex = 0;
+            return;
+        }
+        if (!EngineCatalog.GetProjectPack(_selected.Directory)
+                .Equals("terrain", StringComparison.OrdinalIgnoreCase))
+        {
+            Alert("AI Terrain Scene Builder chỉ hỗ trợ dự án pack=terrain."); return;
+        }
+        if (_operation != null || _environmentCts != null || _aiCts != null ||
+            _ttsCts != null || _terrainAiCts != null)
+        {
+            Alert("Có tác vụ khác đang chạy. Hãy hủy hoặc hoàn thành trước."); return;
+        }
+        if (_shots is null)
+        {
+            try { LoadShots(); }
+            catch (Exception ex) { Alert(ex.Message); return; }
+        }
+        if (_shots is null || _shots.Shots.Count == 0)
+        {
+            Alert("Chưa có cảnh nháp. Hãy tạo timeline và nhấn Tạo cảnh nháp trước."); return;
+        }
+        if (MessageBox.Show(this, "AI sẽ đọc 03-HINH, các mẫu cảnh Terrain và gửi " +
+                "kế hoạch cùng lời đọc đến nhà cung cấp AI đã chọn tại tab AI Kịch bản. " +
+                "AI sẽ điền worlds, template, camera và hành động cho toàn bộ " +
+                _shots.Shots.Count + " cảnh. Thời gian và lời đọc được giữ nguyên. " +
+                "Kết quả chỉ được lưu sau khi bạn xác nhận. Tiếp tục?",
+                "AI tạo toàn bộ cảnh Terrain 3D",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+
+        var request = BuildAiRequest();
+        if (!ConfirmCustomEndpoint(request)) return;
+        var project = _selected.Directory;
+        var slug = _selected.Name;
+        var snapshot = File.ReadAllText(Path.Combine(project, "story", "shots.json"));
+        using var cts = new CancellationTokenSource();
+        _terrainAiCts = cts;
+        AiBuildTerrainButton.IsEnabled = false;
+        AiCancelTerrainButton.IsEnabled = true;
+        try
+        {
+            var profile = _engineCatalog.ResolveForProject(project);
+            var skillRoot = GetSelectedSkillRoot();
+            var assistant = new AiScriptStudio(skillRoot);
+            var builder = new AiTerrainSceneBuilder(assistant);
+            SaveCustomAiPreferences(request);
+            AiTerrainStatus.Text = "AI Terrain đang đọc kế hoạch và chuẩn bị các cảnh...";
+            var progress = new Progress<string>(message =>
+            {
+                AiTerrainStatus.Text = message;
+                Log("AI Terrain: " + message);
+            });
+            var built = await builder.GenerateAsync(request, project, profile.EngineRoot,
+                progress, cts.Token);
+            if (_selected?.Directory != project || _selected?.Name != slug)
+            {
+                AiTerrainStatus.Text = "Dự án đã thay đổi. Chưa lưu kết quả AI.";
+                return;
+            }
+            if (cts.IsCancellationRequested) return;
+            var worldCount = (built.Root["worlds"] as JsonObject)?.Count ?? 0;
+            if (MessageBox.Show(this, "AI đã tạo " + built.Shots.Count + " cảnh và " +
+                    worldCount + " thế giới địa hình.\n\n" +
+                    "Cần kiểm tra lại tính chính xác của vị trí, lịch sử và camera. " +
+                    "Bản gốc sẽ được sao lưu trước khi thay thế shots.json.\n\n" +
+                    "Áp dụng bản nháp AI vào dự án?",
+                    "Xem trước kết quả AI Terrain", MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            {
+                AiTerrainStatus.Text = "Đã từ chối áp dụng. shots.json không thay đổi.";
+                return;
+            }
+            AiTerrainSceneBuilder.SaveWithBackup(project, built, snapshot);
+            LoadShots();
+            AiTerrainStatus.Text = "Đã lưu " + built.Shots.Count +
+                " cảnh AI và sao lưu shots.json cũ. Hãy chạy Kiểm tra cảnh và Bảng ảnh tổng hợp.";
+            Log(AiTerrainStatus.Text);
+        }
+        catch (OperationCanceledException)
+        {
+            AiTerrainStatus.Text = "Đã hủy AI Terrain. shots.json chưa được sửa.";
+        }
+        catch (Exception ex)
+        {
+            AiTerrainStatus.Text = "AI Terrain thất bại: " + ex.Message;
+            Log("AI Terrain: " + ex);
+            Alert(AiTerrainStatus.Text);
+        }
+        finally
+        {
+            _terrainAiCts = null;
+            AiBuildTerrainButton.IsEnabled = true;
+            AiCancelTerrainButton.IsEnabled = false;
+        }
+    }
+
+    private void AiCancelTerrainClick(object sender, RoutedEventArgs e) =>
+        _terrainAiCts?.Cancel();
 
     private void SaveShotsClick(object sender, RoutedEventArgs e)
     {
@@ -1547,6 +1653,7 @@ public partial class MainWindow : Window
         _operation?.Cancel();
         _environmentCts?.Cancel();
         _aiCts?.Cancel();
+        _terrainAiCts?.Cancel();
         _ttsCts?.Cancel();
         StopPreviewHost();
         VideoPlayer.Stop();

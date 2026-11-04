@@ -210,6 +210,10 @@
                     <StackPanel Orientation="Horizontal" Grid.ColumnSpan="2">
                         <Button Content="Tải lại shots.json" Click="LoadShotsClick"/>
                         <Button Content="Kiểm tra và lưu toàn bộ cảnh" Click="SaveShotsClick"/>
+                        <Button x:Name="AiBuildTerrainButton" Content="AI tạo toàn bộ cảnh Terrain 3D"
+                                Click="AiBuildTerrainClick" ToolTip="Dựa trên 03-HINH và template Terrain thực, giữ nguyên thời gian và lời đọc"/>
+                        <Button x:Name="AiCancelTerrainButton" Content="Hủy AI Terrain"
+                                Click="AiCancelTerrainClick" IsEnabled="False"/>
                         <TextBlock Text="Chọn cảnh, chỉnh tham số JSON rồi áp dụng. Các trường bổ sung được giữ nguyên." VerticalAlignment="Center"/>
                     </StackPanel>
                     <DataGrid Name="ShotsGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="ShotsSelectionChanged"
@@ -247,7 +251,11 @@
                             <Button Content="Tải dữ liệu độ cao DEM" Click="DownloadTerrainClick"/>
                         </WrapPanel>
                     </Grid>
-                    <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Margin="5" TextWrapping="Wrap" Text="Bản đồ 2D: view/year/labels và tpl=map. Terrain: tpl=tw hoặc map2d, tham số cam/camFrom/world/do và worlds ở story/shots.json. Không tự động chuyển đổi cảnh giữa các pack."/>
+                    <StackPanel Grid.Row="2" Grid.ColumnSpan="2">
+                        <TextBlock x:Name="AiTerrainStatus" Margin="5,2" TextWrapping="Wrap"
+                            Text="AI Terrain: Chọn dự án terrain có shots.json và 03-HINH để tạo toàn bộ cảnh."/>
+                        <TextBlock Margin="5" TextWrapping="Wrap" Text="Bản đồ 2D: view/year/labels và tpl=map. Terrain: tpl=tw hoặc map2d, tham số cam/camFrom/world/do và worlds ở story/shots.json. Không tự động chuyển đổi cảnh giữa các pack."/>
+                    </StackPanel>
                 </Grid>
             </TabItem>
             <TabItem Header="Xem trước bản đồ">

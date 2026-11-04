@@ -54,3 +54,28 @@ Không có engine trong bản ZIP release mặc định của ứng dụng. Cầ
 - Giọng TTS vẫn là UI chờ API; không tự tạo MP3.
 - Nếu engine dùng packages hoặc Python modules ngoài hệ thống mặc định, quản trị viên cần cài dependency theo tài liệu của pack. Các nguồn DEM từ Internet có thể không truy cập được.
 - Luôn sao lưu Projects và engine cũ trước khi thử nâng cấp.
+
+## AI Terrain Scene Builder — tự điền worlds, template, camera và actions
+
+Tính năng mới: trong tab **Biên tập cảnh bản đồ**, nút **AI tạo toàn bộ cảnh Terrain 3D** dùng cùng nhà cung cấp/model/API key đã chọn ở tab **AI Kịch bản**. Có nút **Hủy AI Terrain** và dòng trạng thái theo tiến độ.
+
+### Chuẩn bị
+
+1. Chọn dự án có `config.json` chứa `pack=terrain`. Engine phải có bộ tham khảo `skills/lam-video-terrain/references/mau-canh.md` và `phong-cach.md`.
+2. **Quan trọng với engine Terrain đã nhập từ phiên bản cũ:** hãy nhập lại ZIP `h2-terrain-studio.zip` bằng chức năng Multi-Pack phiên bản này để tạo engine phiên bản mới **không ghi đè engine cũ**. Bản nhập mới giữ tài liệu `lam-video-terrain/references` (bản cũ chỉ nhập `kich-ban-terrain`). Sau đó chọn/gắn dự án Terrain với engine mới.
+3. Dùng tab **AI Kịch bản** tạo 4 file; phải có `03-HINH-<slug>.md` trong thư mục dự án.
+4. Tạo `story/shots.json` nháp qua `Tạo timeline lời đọc → Tạo cảnh nháp`, hoặc dùng `shots.json` có sẵn từ dự án mẫu. File phải chứa ít nhất một cảnh có ID, start, end và lời đọc. Builder **không tự tạo timeline** và chưa tạo MP3.
+5. Chọn AI Provider **OpenAI / Gemini / Custom** trong tab AI Kịch bản, nhập Model ID và API key nếu cần. Builder gọi API thật theo số lô và có thể phát sinh phí.
+
+### Cách dùng
+
+1. Vào **Biên tập cảnh bản đồ**, chọn **AI tạo toàn bộ cảnh Terrain 3D**.
+2. Xác nhận gửi `03-HINH`, mô tả cảnh và tài liệu mẫu đến nhà cung cấp AI. Đối với endpoint Custom HTTP ngoài loopback, ứng dụng cảnh báo kết nối không mã hóa.
+3. AI đọc bộ ví dụ `mau-canh.md` + `phong-cach.md` của **đúng phiên bản engine được gắn**, đề xuất `worlds` (địa hình, các unit có ID) và các `shots` theo lô tối đa 8 cảnh.
+4. Bộ kiểm tra từ chối output không hợp lệ: thiếu worlds, thiếu kích thước, ID khác, số cảnh khác, `tpl` ngoài `tw/map2d`, `args.world` tham chiếu world sai, camera 3D không hợp lệ hoặc action `show/move/fire/kill` gọi unit không có.
+5. Sau khi AI xử lý, ứng dụng hiển thị số cảnh và worlds cho bạn xác nhận. Nếu đồng ý, ứng dụng sao lưu `shots.json.backup-<timestamp>` rồi ghi `shots.json`. Nếu chọn Không hoặc hủy/lỗi, file cũ không thay đổi.
+6. Dùng **Kiểm tra cảnh → Bảng ảnh tổng hợp → Xem trước 30 giây đầu**, rà soát hình ảnh và lịch sử trước khi render hoàn chỉnh.
+
+**Cam kết:** không sửa ID, start, end, line của các cảnh từ timeline; giữ metadata cũ không liên quan; nếu `03-HINH` không có nguồn tọa độ đáng tin, AI được yêu cầu sử dụng `hills` mô phỏng thay vì đoán `dem.c`.
+
+**Giới hạn:** đây là AI sinh bản nháp JSON theo tài liệu engine, không phải bằng chứng nội dung đúng hoặc chắc chắn render được. CI dùng mô phỏng API, không thử kết nối/DEM/render 3D thật. Việc tải DEM và xác minh lịch sử vẫn cần thực hiện riêng. Chưa hỗ trợ tạo lại riêng một cảnh hay vòng tự động sửa lỗi từ ảnh screenshot.
