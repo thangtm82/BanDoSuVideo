@@ -63,18 +63,20 @@ public sealed class AiScriptStudio
 
     public bool HasSkill =>
         File.Exists(Path.Combine(_skillRoot, "SKILL.md")) &&
-        File.Exists(Path.Combine(_skillRoot, "references", "cau-truc.md")) &&
-        File.Exists(Path.Combine(_skillRoot, "references", "dia-danh.md"));
+        File.Exists(Path.Combine(_skillRoot, "references", "cau-truc.md"));
 
-    public static string ResolveSkillRoot(string appRoot, string engineRoot)
+    private bool IsTerrain => Path.GetFileName(_skillRoot)
+        .Equals("kich-ban-terrain", StringComparison.OrdinalIgnoreCase);
+
+    public static string ResolveSkillRoot(string appRoot, string engineRoot, string pack = "bando")
     {
-        var installed = Path.Combine(engineRoot, "skills", "kich-ban-bandosu");
+        var name = pack.Equals("bando", StringComparison.OrdinalIgnoreCase)
+            ? "kich-ban-bandosu" : "kich-ban-" + pack;
+        var installed = Path.Combine(engineRoot, "skills", name);
         if (File.Exists(Path.Combine(installed, "SKILL.md")) &&
-            File.Exists(Path.Combine(installed, "references", "cau-truc.md")) &&
-            File.Exists(Path.Combine(installed, "references", "dia-danh.md")))
+            File.Exists(Path.Combine(installed, "references", "cau-truc.md")))
             return installed;
-
-        return Path.Combine(appRoot, "skills", "kich-ban-bandosu");
+        return Path.Combine(appRoot, "skills", name);
     }
 
     public async Task<AiScriptBundle> GenerateAsync(AiScriptRequest request,
@@ -89,36 +91,48 @@ public sealed class AiScriptStudio
             throw new ArgumentException("Chưa chọn tên model AI.");
         ValidateRequest(request);
         if (!HasSkill)
-            throw new FileNotFoundException("Thiếu SKILL.md hoặc references/cau-truc.md, dia-danh.md trong " + _skillRoot);
+            throw new FileNotFoundException("Thiếu SKILL.md hoặc references/cau-truc.md trong " + _skillRoot);
 
         var instructions = await File.ReadAllTextAsync(Path.Combine(_skillRoot, "SKILL.md"), ct);
         var structure = await File.ReadAllTextAsync(Path.Combine(_skillRoot, "references", "cau-truc.md"), ct);
-        var places = await File.ReadAllTextAsync(Path.Combine(_skillRoot, "references", "dia-danh.md"), ct);
+        var placesPath = Path.Combine(_skillRoot, "references", "dia-danh.md");
+        var places = File.Exists(placesPath) ? await File.ReadAllTextAsync(placesPath, ct) : "";
         var context = "HƯỚNG DẪN SKILL:\n" + instructions +
-            "\n\nCẤU TRÚC:\n" + structure + "\n\nĐỊA DANH:\n" + places;
-        var wordsTarget = request.Minutes <= 12 ? "2.000–2.400" : "4.000–5.800";
+            "\n\nCẤU TRÚC:\n" + structure +
+            (string.IsNullOrWhiteSpace(places) ? "" : "\n\nĐỊA DANH:\n" + places);
+        var wordsTarget = IsTerrain
+            ? request.Minutes <= 12 ? "1.350–1.800" : "3.300–3.800"
+            : request.Minutes <= 12 ? "2.000–2.400" : "4.000–5.800";
         progress?.Report("1/3 — AI đang viết kịch bản lời đọc...");
+        var taskOne = IsTerrain
+            ? "Viết riêng file 01-SCRIPT bằng tiếng Anh Mỹ, 9 nhịp theo cau-truc.md. " +
+              "Trình bày chiến thuật trên địa hình thật, có ngày, vị trí, lực lượng, diễn biến, quy luật chiến thuật. " +
+              "Không bịa quân số, tọa độ, quote hoặc trích dẫn quân sự. " +
+              "Không có web research trong phiên này; các chi tiết chưa chứng minh phải được để xác minh thủ công."
+            : "Viết riêng nội dung file 01-SCRIPT bằng tiếng Việt, 7 nhịp, 3 lý do, " +
+              "không markdown/tiêu đề. Không bịa số liệu hoặc trích dẫn.";
         var script = (await CompleteAsync(request, context +
-            "\n\nNHIỆM VỤ 1: Viết riêng nội dung file 01-SCRIPT cho đề tài: " + request.Topic +
-            "\nThời lượng: " + request.Minutes + " phút; số chữ mục tiêu " + wordsTarget +
-            ". Trả duy nhất lời thuyết minh tiếng Việt liền mạch, không markdown, không tiêu đề, " +
-            "không số chữ, không tệp khác. Tuân thủ 7 nhịp, 3 lý do, có các năm và địa danh. " +
-            "Không bịa số liệu hay trích dẫn. Những mốc chưa chắc chắn thì trình bày thận trọng. " +
-            "Không được tự nhận đã tra cứu trực tuyến: ở phiên làm việc này không có công cụ tra cứu web.",
-            ct)).Trim();
+            "\n\nNHIỆM VỤ 1: " + taskOne + "\nĐề tài: " + request.Topic +
+            "\nThời lượng: " + request.Minutes + " phút; mục tiêu " + wordsTarget +
+            " chữ. Trả lại duy nhất lời thuyết minh voiceover-ready, không kèm footer đếm chữ. " +
+            "Không được tự nhận đã nghiên cứu trực tuyến.", ct)).Trim();
         script = NormalizeScript(script);
         var count = CountWords(script);
         if (count < 200)
             throw new InvalidDataException("AI trả kịch bản quá ngắn. Hãy thử model khác hoặc tạo lại.");
         progress?.Report("2/3 — Đang chia lời đọc và lập kế hoạch bản đồ...");
         var (voice, segments) = MakeVoice(script);
+        var planTask = IsTerrain
+            ? "Lập file 03-HINH bằng Markdown: thế giới 3D, các ID world, DEM [lon,lat] " +
+              "(chỉ ghi tọa độ có cơ sở, còn lại CẦN KIỂM CHỨNG), hướng camera, đơn vị quân, " +
+              "diễn tiến từng đoạn voice 1.." + segments + ", âm thanh/SFX, nguồn. " +
+              "Phân biệt template tw và map2d; không tự giả vờ đã truy vấn địa hình thực."
+            : "Lập file 03-BAN-DO bằng Markdown; ánh xạ từng đoạn voice 1.." + segments +
+              ", dùng view/place nếu có trong dia-danh.md, kế hoạch cảnh và nguồn. " +
+              "Không tự tạo nguồn không kiểm chứng.";
         var plan = (await CompleteAsync(request, context +
-            "\n\nNHIỆM VỤ 2: Lập riêng file 03-BAN-DO bằng Markdown từ lời đọc sau. " +
-            "Bảng phải ánh xạ chính xác số đoạn voice từ 1 đến " + segments +
-            ", dùng view/place có trong dia-danh.md, năm và thay đổi bản đồ theo mỗi chặng, " +
-            "thanh chủ đề, bảng màu, 2–3 điểm Hãy nhìn lại bản đồ, nhạc và mục Nguồn. " +
-            "Không tự bịa URL sách; ghi rõ CẦN KIỂM CHỨNG cho nguồn/mốc chưa được kiểm tra. " +
-            "Đây là kế hoạch tham khảo, không phải shots.json hoặc lệnh renderer đã được xác thực.\n\nLỜI ĐỌC:\n" + script,
+            "\n\nNHIỆM VỤ 2: " + planTask +
+            " Đây là kế hoạch hình ảnh, không phải shots.json đã được kiểm thử.\n\nLỜI ĐỌC:\n" + script,
             ct)).Trim();
         progress?.Report("3/3 — Đang viết gói nội dung YouTube...");
         var package = (await CompleteAsync(request, context +
@@ -127,7 +141,7 @@ public sealed class AiScriptStudio
             "20 tag, hashtag, bình luận ghim và mục nguồn tham khảo. Nêu rõ nguồn chưa được xác minh nếu cần. " +
             "Không bịa thông tin có thể kiểm chứng.\n\nLỜI ĐỌC:\n" + script,
             ct)).Trim();
-        var footer = $"\r\n\r\nSố chữ: {count:N0} · Thời lượng ước tính: {count / 195.0:0.0} phút";
+        var footer = $"\r\n\r\nSố chữ: {count:N0} · Thời lượng ước tính: {count / (IsTerrain ? 150.0 : 195.0):0.0} phút";
         progress?.Report("Đã tạo xong bản nháp. Hãy duyệt sử liệu và nguồn trước khi xuất bản.");
         return new(slug, script + footer, voice, plan, package, count, segments);
     }
