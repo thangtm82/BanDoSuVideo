@@ -25,7 +25,7 @@ public sealed class EngineCatalog
     private static readonly HashSet<string> Ignored = new(StringComparer.OrdinalIgnoreCase)
     {
         ".git", "node_modules", ".venv", "venv", "projects", "build", "out",
-        "dist", "__pycache__", ".pytest_cache", ".next"
+        "dist", "dem-cache", "__pycache__", ".pytest_cache", ".next"
     };
 
     public StudioSettings Settings { get; }
