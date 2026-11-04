@@ -35,9 +35,9 @@ public partial class MainWindow : Window
                 await MapBrowser.ExecuteScriptAsync(
                     "(async () => { for (let i = 0; i < 150 && !window.__ready && !window.__bootError; i++) await new Promise(r => setTimeout(r, 100)); if (window.__ready) await window.renderFrame(0); })()");
                 var bootError = await MapBrowser.ExecuteScriptAsync("window.__bootError || null");
-                if (bootError != "null") Log("Map boot error: " + bootError);
+                if (bootError != "null") Log("Lỗi khởi tạo bản đồ: " + bootError);
             }
-            catch (Exception ex) { Log("Live map error: " + ex.Message); }
+            catch (Exception ex) { Log("Lỗi xem trước bản đồ: " + ex.Message); }
         };
         _projects = new ProjectFiles(_settings);
         _commands = new StudioCommands(_settings);
@@ -65,7 +65,7 @@ public partial class MainWindow : Window
     private bool HasStudio()
     {
         if (File.Exists(Path.Combine(_settings.StudioRoot, "render.mjs"))) return true;
-        Alert("Please select the installed H2 Studio root in Settings (folder with render.mjs).");
+        Alert("Hãy chọn thư mục H2 Studio đã cài đặt trong Cài đặt (thư mục chứa render.mjs).");
         MainTabs.SelectedIndex = 5;
         return false;
     }
@@ -74,7 +74,7 @@ public partial class MainWindow : Window
     {
         if (!HasStudio()) return false;
         if (_selected is not null) return true;
-        Alert("Select a project in the Projects tab first.");
+        Alert("Vui lòng chọn dự án trong tab Dự án trước.");
         MainTabs.SelectedIndex = 0;
         return false;
     }
@@ -82,33 +82,33 @@ public partial class MainWindow : Window
     private async Task ExecuteAsync(Func<Action<string>, CancellationToken, Task<ProcessResult>> work, string label,
         Action? onSuccess = null)
     {
-        if (_operation != null) { Alert("Another operation is running. Cancel or finish it first."); return; }
+        if (_operation != null) { Alert("Đang có tác vụ khác chạy. Hãy hoàn tất hoặc hủy tác vụ đó trước."); return; }
         using var cancellation = new CancellationTokenSource();
         _operation = cancellation;
-        RenderStatus.Text = label + " running...";
+        RenderStatus.Text = label + " đang chạy...";
         Log("=== " + label + " ===");
         try
         {
             var result = await work(Log, cancellation.Token);
             if (result.ExitCode != 0)
             {
-                RenderStatus.Text = label + " failed";
-                Log($"FAIL: exit code {result.ExitCode}");
-                Alert(label + " failed; inspect the log.");
+                RenderStatus.Text = label + " thất bại";
+                Log($"LỖI: mã thoát {result.ExitCode}");
+                Alert(label + " thất bại. Hãy xem nhật ký xử lý.");
                 return;
             }
-            RenderStatus.Text = label + " complete";
-            Log("DONE: " + label);
+            RenderStatus.Text = label + " hoàn tất";
+            Log("HOÀN TẤT: " + label);
             onSuccess?.Invoke();
         }
         catch (OperationCanceledException)
         {
-            RenderStatus.Text = "Cancelled";
-            Log("CANCELLED: " + label);
+            RenderStatus.Text = "Đã hủy";
+            Log("ĐÃ HỦY: " + label);
         }
         catch (Exception ex)
         {
-            RenderStatus.Text = label + " failed";
+            RenderStatus.Text = label + " thất bại";
             Log(ex.ToString());
             Alert(ex.Message);
         }
@@ -133,11 +133,11 @@ public partial class MainWindow : Window
         if (!HasStudio()) return;
         var slug = NewSlug.Text.Trim();
         if (!Regex.IsMatch(slug, @"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,80}$"))
-        { Alert("Project name can use letters, digits, hyphen and underscore."); return; }
+        { Alert("Tên thư mục dự án chỉ được chứa chữ Latin không dấu, chữ số, dấu gạch nối và gạch dưới."); return; }
         if (Directory.Exists(_projects.ResolveProject(slug)))
-        { Alert("Project already exists. Choose a new name."); return; }
+        { Alert("Dự án đã tồn tại. Hãy chọn tên khác."); return; }
         await ExecuteAsync((log, ct) => _commands.CreateProjectAsync(slug, NewTitle.Text.Trim(),
-            NewCaptions.IsChecked == true, log, ct), "Create project", () =>
+            NewCaptions.IsChecked == true, log, ct), "Tạo dự án", () =>
         {
             RefreshProjects();
             ProjectsList.SelectedItem = _projects.List().FirstOrDefault(p => p.Name == slug);
@@ -150,13 +150,13 @@ public partial class MainWindow : Window
         _shots = null;
         ShotsGrid.ItemsSource = null;
         ArgsEditor.Text = "";
-        ProjectHeader.Text = _selected?.Title ?? "No project selected";
+        ProjectHeader.Text = _selected?.Title ?? "Chưa chọn dự án";
         if (_selected == null) return;
         var projectScript = _projects.FileInProject(_selected.Name, "input", "02-VOICE.txt");
         _scriptPath = projectScript;
         ScriptEditor.Text = File.Exists(projectScript) ? File.ReadAllText(projectScript, Encoding.UTF8) : "";
         VoiceFolder.Text = _projects.FileInProject(_selected.Name, "input", "voice");
-        try { LoadShots(); } catch (Exception ex) { Log("Scene load: " + ex.Message); }
+        try { LoadShots(); } catch (Exception ex) { Log("Lỗi tải cảnh: " + ex.Message); }
         StopPreviewHost();
     }
 
@@ -165,11 +165,11 @@ public partial class MainWindow : Window
 
     private void LoadScriptClick(object sender, RoutedEventArgs e)
     {
-        var dlg = new OpenFileDialog { Filter = "Text (*.txt)|*.txt|All files|*.*" };
+        var dlg = new OpenFileDialog { Filter = "Tệp văn bản (*.txt)|*.txt|Tất cả tệp|*.*" };
         if (dlg.ShowDialog(this) != true) return;
         _scriptPath = dlg.FileName;
         ScriptEditor.Text = File.ReadAllText(dlg.FileName, Encoding.UTF8);
-        Log("Loaded script: " + _scriptPath);
+        Log("Đã tải kịch bản: " + _scriptPath);
     }
 
     private bool SaveScript()
@@ -179,7 +179,7 @@ public partial class MainWindow : Window
         var canonical = _projects.FileInProject(_selected!.Name, "input", "02-VOICE.txt");
         ProjectFiles.SaveText(canonical, ScriptEditor.Text);
         _scriptPath = canonical;
-        Log("Saved voice script: " + canonical);
+        Log("Đã lưu lời đọc: " + canonical);
         return true;
     }
 
@@ -187,21 +187,21 @@ public partial class MainWindow : Window
 
     private void BrowseVoiceClick(object sender, RoutedEventArgs e)
     {
-        var dlg = new OpenFolderDialog { Title = "Choose folder containing 1.mp3, 2.mp3, ..." };
+        var dlg = new OpenFolderDialog { Title = "Chọn thư mục chứa 1.mp3, 2.mp3, ..." };
         if (dlg.ShowDialog(this) == true) VoiceFolder.Text = dlg.FolderName;
     }
 
     private bool ValidateVoice()
     {
-        if (!Directory.Exists(VoiceFolder.Text)) { Alert("MP3 folder does not exist."); return false; }
+        if (!Directory.Exists(VoiceFolder.Text)) { Alert("Không tìm thấy thư mục MP3."); return false; }
         var segments = ScriptEditor.Text.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
-        if (segments.Length == 0) { Alert("Voice script is empty."); return false; }
+        if (segments.Length == 0) { Alert("Kịch bản lời đọc đang trống."); return false; }
         var missing = Enumerable.Range(1, segments.Length).Where(i =>
             !File.Exists(Path.Combine(VoiceFolder.Text, i + ".mp3"))).ToArray();
         if (missing.Length > 0)
-        { Alert("Missing numbered MP3 files: " + string.Join(", ", missing.Take(20))); return false; }
-        Log($"Voice check OK: {segments.Length} segments and numbered MP3s.");
+        { Alert("Thiếu các tệp MP3 theo thứ tự: " + string.Join(", ", missing.Take(20))); return false; }
+        Log($"Kiểm tra giọng đọc thành công: {segments.Length} đoạn và các MP3 được đánh số tương ứng.");
         return true;
     }
 
@@ -211,21 +211,21 @@ public partial class MainWindow : Window
     {
         if (!HasProject() || !ValidateVoice() || !SaveScript()) return;
         await ExecuteAsync((log, ct) => _commands.PrepareVoiceAsync(_selected!.Name,
-            VoiceFolder.Text, _scriptPath!, log, ct), "Prepare voice");
+            VoiceFolder.Text, _scriptPath!, log, ct), "Chuẩn bị giọng đọc");
     }
 
     private async void DraftShotsClick(object sender, RoutedEventArgs e)
     {
         if (!HasProject()) return;
         var timeline = _projects.FileInProject(_selected!.Name, "timeline", "lines.json");
-        if (!File.Exists(timeline)) { Alert("Prepare voice first: timeline/lines.json missing."); return; }
+        if (!File.Exists(timeline)) { Alert("Hãy tạo timeline lời đọc trước: thiếu timeline/lines.json."); return; }
         var shots = _projects.FileInProject(_selected.Name, "story", "shots.json");
         if (File.Exists(shots) && MessageBox.Show(this,
-                "Draft generation may replace existing scene edits. Continue?",
-                "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                "Tạo lại cảnh nháp có thể ghi đè các chỉnh sửa hiện tại. Bạn muốn tiếp tục?",
+                "Xác nhận", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         if (File.Exists(shots)) File.Copy(shots, shots + ".backup-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss"), true);
         await ExecuteAsync((log, ct) => _commands.DraftShotsAsync(_selected.Name, log, ct),
-            "Generate draft scenes", () =>
+            "Tạo cảnh nháp", () =>
             {
                 LoadShots();
                 if (_shots is not null && _selected is not null)
@@ -235,7 +235,7 @@ public partial class MainWindow : Window
                         _projects.FileInProject(_selected.Name, "story", "shots.json"),
                         _shots.Root);
                     ShotsGrid.ItemsSource = _shots.Rows;
-                    Log("Initialized map templates and first camera view.");
+                    Log("Đã khởi tạo mẫu cảnh bản đồ và khung hình camera đầu tiên.");
                 }
             });
     }
@@ -250,7 +250,7 @@ public partial class MainWindow : Window
         if (!File.Exists(file)) { _shots = null; ShotsGrid.ItemsSource = null; return; }
         _shots = new ShotDocument(ProjectFiles.ReadJson(file));
         ShotsGrid.ItemsSource = _shots.Rows;
-        Log("Loaded scenes: " + _shots.Shots.Count);
+        Log("Đã tải số cảnh: " + _shots.Shots.Count);
     }
 
     private void LoadShotsClick(object sender, RoutedEventArgs e)
@@ -274,7 +274,7 @@ public partial class MainWindow : Window
     private void ApplyMapFieldsClick(object sender, RoutedEventArgs e)
     {
         if (_shots == null || ShotsGrid.SelectedIndex < 0)
-        { Alert("Select a scene first."); return; }
+        { Alert("Hãy chọn một cảnh trước."); return; }
         try
         {
             var obj = JsonNode.Parse(ArgsEditor.Text) as JsonObject ?? new JsonObject();
@@ -300,20 +300,20 @@ public partial class MainWindow : Window
             }
             ArgsEditor.Text = obj.ToJsonString(JsonOptions.Pretty);
             _shots.UpdateArgs(ShotsGrid.SelectedIndex, ArgsEditor.Text);
-            Log("Applied map properties to " + _shots.Rows[ShotsGrid.SelectedIndex].Id);
+            Log("Đã áp dụng thuộc tính bản đồ cho " + _shots.Rows[ShotsGrid.SelectedIndex].Id);
         }
-        catch (Exception ex) { Alert("Cannot apply map properties: " + ex.Message); }
+        catch (Exception ex) { Alert("Không thể áp dụng thuộc tính bản đồ: " + ex.Message); }
     }
 
     private void ApplyShotClick(object sender, RoutedEventArgs e)
     {
-        if (_shots == null || ShotsGrid.SelectedIndex < 0) { Alert("Select a scene first."); return; }
+        if (_shots == null || ShotsGrid.SelectedIndex < 0) { Alert("Hãy chọn một cảnh trước."); return; }
         try
         {
             _shots.UpdateArgs(ShotsGrid.SelectedIndex, ArgsEditor.Text);
-            Log("Applied args to scene " + _shots.Rows[ShotsGrid.SelectedIndex].Id);
+            Log("Đã áp dụng tham số cho cảnh " + _shots.Rows[ShotsGrid.SelectedIndex].Id);
         }
-        catch (Exception ex) { Alert("Invalid scene JSON: " + ex.Message); }
+        catch (Exception ex) { Alert("JSON của cảnh không hợp lệ: " + ex.Message); }
     }
 
     private void SaveShotsClick(object sender, RoutedEventArgs e)
@@ -325,15 +325,15 @@ public partial class MainWindow : Window
             var file = _projects.FileInProject(_selected!.Name, "story", "shots.json");
             if (File.Exists(file)) File.Copy(file, file + ".bak", true);
             ProjectFiles.SaveJson(file, _shots.Root);
-            Log("Saved scenes: " + file);
+            Log("Đã lưu các cảnh: " + file);
         }
-        catch (Exception ex) { Alert("Cannot save scenes: " + ex.Message); }
+        catch (Exception ex) { Alert("Không thể lưu các cảnh: " + ex.Message); }
     }
 
     private async void StartLiveClick(object sender, RoutedEventArgs e)
     {
         if (!HasProject()) return;
-        if (_previewHost != null && !_previewHost.HasExited) { Alert("Live preview already running."); return; }
+        if (_previewHost != null && !_previewHost.HasExited) { Alert("Bản xem trước đang chạy."); return; }
         try
         {
             var script = Path.Combine(AppContext.BaseDirectory, "integration", "preview-host.mjs");
@@ -356,8 +356,8 @@ public partial class MainWindow : Window
                     ready.TrySetResult(args.Data["PREVIEW_URL ".Length..]);
                 else if (args.Data != null) Log(args.Data);
             };
-            _previewHost.ErrorDataReceived += (_, args) => { if (args.Data != null) Log("[preview] " + args.Data); };
-            _previewHost.Exited += (_, _) => ready.TrySetException(new InvalidOperationException("Preview server exited before startup."));
+            _previewHost.ErrorDataReceived += (_, args) => { if (args.Data != null) Log("[xem trước] " + args.Data); };
+            _previewHost.Exited += (_, _) => ready.TrySetException(new InvalidOperationException("Máy chủ xem trước đã thoát trước khi khởi động."));
             _previewHost.Start();
             _previewHost.BeginOutputReadLine();
             _previewHost.BeginErrorReadLine();
@@ -370,10 +370,10 @@ public partial class MainWindow : Window
                 MapTime.Maximum = Math.Max(1, double.TryParse(cfg["duration"]?.ToString(), out var dur) ? dur : 60);
             }
             catch { MapTime.Maximum = 60; }
-            LiveStatus.Text = "Running — " + _selected.Name;
-            Log("Live map: " + _previewUrl);
+            LiveStatus.Text = "Đang chạy — " + _selected.Name;
+            Log("Bản đồ trực tiếp: " + _previewUrl);
         }
-        catch (Exception ex) { StopPreviewHost(); Alert("Cannot start live map: " + ex.Message); }
+        catch (Exception ex) { StopPreviewHost(); Alert("Không thể khởi động bản đồ xem trước: " + ex.Message); }
     }
 
     private async void SeekLiveClick(object sender, RoutedEventArgs e)
@@ -385,7 +385,7 @@ public partial class MainWindow : Window
             await MapBrowser.ExecuteScriptAsync(
                 $"if (window.__ready && window.__info) window.renderFrame(Math.max(0, Math.round({t} * window.__info.fps)));");
         }
-        catch (Exception ex) { Log("Seek error: " + ex.Message); }
+        catch (Exception ex) { Log("Lỗi chuyển thời điểm: " + ex.Message); }
     }
 
     private void RefreshLiveClick(object sender, RoutedEventArgs e)
@@ -404,7 +404,7 @@ public partial class MainWindow : Window
                 _previewHost.Kill(entireProcessTree: true);
         }
         catch (InvalidOperationException) { }
-        finally { _previewHost?.Dispose(); _previewHost = null; _previewUrl = null; LiveStatus.Text = "Stopped"; }
+        finally { _previewHost?.Dispose(); _previewHost = null; _previewUrl = null; LiveStatus.Text = "Đã dừng"; }
     }
 
     private async Task Render(RenderMode mode, string label, Action? success = null)
@@ -413,21 +413,21 @@ public partial class MainWindow : Window
         await ExecuteAsync((log, ct) => _commands.RenderAsync(_selected!.Name, mode, log, ct), label, success);
     }
 
-    private async void CheckRenderClick(object sender, RoutedEventArgs e) => await Render(RenderMode.Check, "Scene check");
-    private async void SheetRenderClick(object sender, RoutedEventArgs e) => await Render(RenderMode.Sheet, "Contact sheet", () =>
+    private async void CheckRenderClick(object sender, RoutedEventArgs e) => await Render(RenderMode.Check, "Kiểm tra cảnh");
+    private async void SheetRenderClick(object sender, RoutedEventArgs e) => await Render(RenderMode.Sheet, "Bảng ảnh tổng hợp", () =>
         OpenPath(Path.Combine(_selected!.Directory, "build", "sheets")));
     private async void PreviewRenderClick(object sender, RoutedEventArgs e) =>
-        await Render(RenderMode.Preview, "30-second preview", () =>
+        await Render(RenderMode.Preview, "Xem thử 30 giây", () =>
         {
             var p = Path.Combine(_selected!.Directory, "build", "preview.mp4");
             if (File.Exists(p)) { VideoPlayer.Source = new Uri(p); VideoPlayer.Play(); }
         });
-    private async void FullRenderClick(object sender, RoutedEventArgs e) => await Render(RenderMode.Full, "Full video render");
+    private async void FullRenderClick(object sender, RoutedEventArgs e) => await Render(RenderMode.Full, "Dựng toàn bộ video");
     private void CreateThumbSceneClick(object sender, RoutedEventArgs e)
     {
         if (!HasProject()) return;
         var path = _projects.FileInProject(_selected!.Name, "scenes", "shots", "thumb.js");
-        if (File.Exists(path) && MessageBox.Show(this, "Replace existing thumbnail scene?",
+        if (File.Exists(path) && MessageBox.Show(this, "Thay thế cảnh ảnh bìa hiện tại?",
                 "Confirm overwrite", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
             return;
         try
@@ -439,26 +439,26 @@ public partial class MainWindow : Window
             var source = "import { thumb } from '/packs/bando/pack.js';\\n" +
                 $"thumb({{ view: {view}, lines: [{first}, {second}], colors: ['white', 'yellow'], pos: 'br' }});\\n";
             ProjectFiles.SaveText(path, source.Replace("\\n", Environment.NewLine));
-            Log("Created thumbnail scene: " + path);
+            Log("Đã tạo cảnh ảnh bìa: " + path);
         }
-        catch (Exception ex) { Alert("Cannot create thumbnail source: " + ex.Message); }
+        catch (Exception ex) { Alert("Không thể tạo mã ảnh bìa: " + ex.Message); }
     }
 
     private async void ThumbnailRenderClick(object sender, RoutedEventArgs e) => await Render(RenderMode.Thumbnail,
-        "Thumbnail", () => OpenPath(Path.Combine(_selected!.Directory, "out")));
+        "Ảnh bìa", () => OpenPath(Path.Combine(_selected!.Directory, "out")));
 
     private async void MixRenderClick(object sender, RoutedEventArgs e)
     {
         if (!HasProject()) return;
         var video = Path.Combine(_selected!.Directory, "build", "video_silent.mp4");
-        if (!File.Exists(video)) { Alert("Full render must finish before mixing audio."); return; }
-        await ExecuteAsync((log, ct) => _commands.MixAsync(_selected.Name, log, ct), "Audio mix", () =>
+        if (!File.Exists(video)) { Alert("Hãy hoàn tất dựng video trước khi ghép âm thanh."); return; }
+        await ExecuteAsync((log, ct) => _commands.MixAsync(_selected.Name, log, ct), "Ghép âm thanh", () =>
             OpenPath(Path.Combine(_selected.Directory, "out")));
     }
 
     private void PlayVideoClick(object sender, RoutedEventArgs e) => VideoPlayer.Play();
     private void PauseVideoClick(object sender, RoutedEventArgs e) => VideoPlayer.Pause();
-    private void VideoPlayerFailed(object sender, ExceptionRoutedEventArgs e) => Log("Video playback: " + e.ErrorException.Message);
+    private void VideoPlayerFailed(object sender, ExceptionRoutedEventArgs e) => Log("Lỗi phát video: " + e.ErrorException.Message);
     private void OpenOutputClick(object sender, RoutedEventArgs e)
     { if (HasProject()) OpenPath(Path.Combine(_selected!.Directory, "out")); }
 
@@ -477,7 +477,7 @@ public partial class MainWindow : Window
     private void SaveSettingsClick(object sender, RoutedEventArgs e)
     {
         if (!File.Exists(Path.Combine(StudioRootText.Text.Trim(), "render.mjs")))
-        { Alert("render.mjs was not found in this folder."); return; }
+        { Alert("Không tìm thấy render.mjs trong thư mục này."); return; }
         StopPreviewHost();
         _settings = new StudioSettings
         {
@@ -491,13 +491,13 @@ public partial class MainWindow : Window
         _commands = new StudioCommands(_settings);
         _selected = null;
         RefreshProjects();
-        Log("Settings saved to " + StudioSettings.SettingsPath);
+        Log("Đã lưu cài đặt tại " + StudioSettings.SettingsPath);
     }
 
     private async void DoctorClick(object sender, RoutedEventArgs e)
     {
         if (!HasStudio()) return;
-        await ExecuteAsync((log, ct) => _commands.DoctorAsync(log, ct), "Studio doctor");
+        await ExecuteAsync((log, ct) => _commands.DoctorAsync(log, ct), "Kiểm tra môi trường Studio");
     }
 
     private void CancelClick(object sender, RoutedEventArgs e) => _operation?.Cancel();
