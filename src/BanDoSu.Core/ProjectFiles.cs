@@ -113,9 +113,11 @@ public sealed class ProjectFiles
     /// Move a newly generated project to the independent workspace after successful creation.
     /// Never overwrite an existing project.
     /// </summary>
-    public string MoveNewProjectToWorkspace(string name)
+    public string MoveNewProjectToWorkspace(string name, string? sourceEngineRoot = null)
     {
-        var source = InRoot(LegacyProjectsRoot, name);
+        var sourceProjects = sourceEngineRoot is null ? LegacyProjectsRoot
+            : Path.GetFullPath(Path.Combine(sourceEngineRoot, "projects"));
+        var source = InRoot(sourceProjects, name);
         var destination = InRoot(ProjectsRoot, name);
         if (!Directory.Exists(source) || !File.Exists(Path.Combine(source, "config.json")))
             throw new FileNotFoundException("Engine chưa tạo dự án hợp lệ.", Path.Combine(source, "config.json"));
