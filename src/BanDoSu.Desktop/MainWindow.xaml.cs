@@ -619,21 +619,27 @@ public partial class MainWindow : Window
             WorkspaceRoot = WorkspaceRootText.Text.Trim(),
             ExportRoot = ExportRootText.Text.Trim(),
             LegacyEngineRoot = _settings.LegacyEngineRoot,
+            LegacyWorkspaceRoot = _settings.LegacyWorkspaceRoot,
             NodeExecutable = NodeText.Text.Trim(),
             PythonExecutable = PythonText.Text.Trim(),
             FfmpegExecutable = FfmpegText.Text.Trim()
         };
-        var portablePaths = new PortableStudioPaths();
-        if (!_settings.IsPortable &&
-            Path.GetFullPath(proposed.StudioRoot).Equals(portablePaths.Engine, StringComparison.OrdinalIgnoreCase))
-            proposed.LegacyEngineRoot = _settings.StudioRoot;
         if (string.IsNullOrWhiteSpace(proposed.StudioRoot) ||
             string.IsNullOrWhiteSpace(proposed.WorkspaceRoot) ||
             string.IsNullOrWhiteSpace(proposed.ExportRoot))
         {
             Alert("Các đường dẫn không được để trống."); return;
         }
-                try { ProjectFiles.ValidateRoots(proposed); }
+        var portablePaths = new PortableStudioPaths();
+        if (!_settings.IsPortable &&
+            Path.GetFullPath(proposed.StudioRoot).Equals(portablePaths.Engine, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!Path.GetFullPath(_settings.StudioRoot).Equals(portablePaths.Engine, StringComparison.OrdinalIgnoreCase))
+                proposed.LegacyEngineRoot = _settings.StudioRoot;
+            if (!Path.GetFullPath(_settings.WorkspaceRoot).Equals(portablePaths.Projects, StringComparison.OrdinalIgnoreCase))
+                proposed.LegacyWorkspaceRoot = _settings.WorkspaceRoot;
+        }
+        try { ProjectFiles.ValidateRoots(proposed); }
         catch (Exception ex) { Alert("Đường dẫn cấu hình không hợp lệ: " + ex.Message); return; }
         StopPreviewHost();
         _settings = proposed;
