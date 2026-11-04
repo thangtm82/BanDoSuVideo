@@ -201,6 +201,48 @@ public sealed class ProjectFiles
         }
     }
 
+    /// <summary>
+    /// Imports an existing H2 project (including Terrain examples extracted
+    /// from a ZIP) without modifying the original directory.
+    /// </summary>
+    public string ImportExternalProjectToWorkspace(string projectDirectory)
+    {
+        var source = Path.GetFullPath(projectDirectory);
+        if (!Directory.Exists(source) || !File.Exists(Path.Combine(source, "config.json")))
+            throw new FileNotFoundException("Thư mục được chọn chưa có config.json hợp lệ.");
+        var name = Path.GetFileName(source.TrimEnd(Path.DirectorySeparatorChar));
+        ValidateName(name);
+        ValidateRoots(Settings);
+        var destination = InRoot(ProjectsRoot, name);
+        if (Directory.Exists(destination))
+            throw new IOException("Workspace đã có dự án '" + name + "'. Không ghi đè.");
+        var staging = destination + ".importing-" + Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(ProjectsRoot);
+        try
+        {
+            CopyDirectory(source, staging);
+            if (!File.Exists(Path.Combine(staging, "config.json")))
+                throw new IOException("Bản sao dự án thiếu config.json.");
+            var originals = Directory.GetFiles(source, "*", SearchOption.AllDirectories);
+            var copies = Directory.GetFiles(staging, "*", SearchOption.AllDirectories);
+            if (originals.Length != copies.Length)
+                throw new IOException("Số tệp dự án không trùng khớp.");
+            foreach (var original in originals)
+            {
+                var relative = Path.GetRelativePath(source, original);
+                var copied = Path.Combine(staging, relative);
+                if (!File.Exists(copied) || new FileInfo(original).Length != new FileInfo(copied).Length)
+                    throw new IOException("Bản sao dự án khác bản gốc: " + relative);
+            }
+            Directory.Move(staging, destination);
+            return destination;
+        }
+        finally
+        {
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        }
+    }
+
     private static void CopyDirectory(string source, string target)
     {
         Directory.CreateDirectory(target);
