@@ -5,6 +5,10 @@ namespace BanDoSu.Core;
 public sealed class StudioSettings
 {
     public string StudioRoot { get; set; } = @"D:\BanDoSu\h2-2d-studio";
+    // Keep engine separate from user-created projects and published videos.
+    // Existing settings.json files without these fields remain supported.
+    public string WorkspaceRoot { get; set; } = @"D:\BanDoSu\Projects";
+    public string ExportRoot { get; set; } = @"D:\BanDoSu\Exports";
     public string NodeExecutable { get; set; } = "node";
     public string PythonExecutable { get; set; } = "python";
     public string FfmpegExecutable { get; set; } = "ffmpeg";
