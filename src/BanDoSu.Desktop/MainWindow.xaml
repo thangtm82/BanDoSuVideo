@@ -41,6 +41,7 @@
                         <CheckBox Name="NewCaptions" Margin="8" Content="Bật phụ đề karaoke" IsChecked="True"/>
                         <Button Content="Tạo dự án" Click="CreateProjectClick" HorizontalAlignment="Left"/>
                         <Button Content="Mở thư mục dự án" Click="OpenProjectFolderClick" HorizontalAlignment="Left"/>
+                        <Button Content="Sao chép dự án cũ vào Workspace" Click="MigrateLegacyClick" HorizontalAlignment="Left"/>
                         <TextBlock TextWrapping="Wrap" Margin="6,16,0,0" Text="Dự án mới được lưu trong Workspace riêng; dự án cũ trong H2 Studio vẫn có thể mở. Video hoàn chỉnh được sao chép đến thư mục Xuất video trong Cài đặt."/>
                     </StackPanel>
                 </Grid>
