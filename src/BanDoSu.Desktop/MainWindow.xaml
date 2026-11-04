@@ -129,14 +129,25 @@
             <TabItem Header="Render &amp; Preview">
                 <Grid Margin="8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <WrapPanel>
-                        <Button Content="Check scenes" Click="CheckRenderClick"/>
-                        <Button Content="Contact sheet" Click="SheetRenderClick"/>
-                        <Button Content="Preview first 30s" Click="PreviewRenderClick"/>
-                        <Button Content="Full render" Click="FullRenderClick"/>
-                        <Button Content="Mix audio" Click="MixRenderClick"/>
-                        <Button Content="Thumbnail" Click="ThumbnailRenderClick"/>
-                    </WrapPanel>
+                    <StackPanel>
+                        <WrapPanel>
+                            <Button Content="Check scenes" Click="CheckRenderClick"/>
+                            <Button Content="Contact sheet" Click="SheetRenderClick"/>
+                            <Button Content="Preview first 30s" Click="PreviewRenderClick"/>
+                            <Button Content="Full render" Click="FullRenderClick"/>
+                            <Button Content="Mix audio" Click="MixRenderClick"/>
+                            <Button Content="Render thumbnail" Click="ThumbnailRenderClick"/>
+                        </WrapPanel>
+                        <WrapPanel>
+                            <TextBlock Text="Thumbnail view" Margin="6" VerticalAlignment="Center"/>
+                            <TextBox Name="ThumbViewInput" Width="115" Text="viet-nam"/>
+                            <TextBlock Text="Line 1" Margin="6" VerticalAlignment="Center"/>
+                            <TextBox Name="ThumbLineOne" Width="145" Text="LICH SU"/>
+                            <TextBlock Text="Line 2" Margin="6" VerticalAlignment="Center"/>
+                            <TextBox Name="ThumbLineTwo" Width="145" Text="BAN DO"/>
+                            <Button Content="Create thumbnail scene" Click="CreateThumbSceneClick"/>
+                        </WrapPanel>
+                    </StackPanel>
                     <MediaElement Name="VideoPlayer" Grid.Row="1" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform"
                                   MediaFailed="VideoPlayerFailed" Margin="6" />
                     <StackPanel Grid.Row="2" Orientation="Horizontal">
