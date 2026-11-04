@@ -35,7 +35,7 @@ public sealed class StudioProcess
         }
         process.OutputDataReceived += (_, e) => Append(e.Data);
         process.ErrorDataReceived += (_, e) => Append(e.Data);
-        if (!process.Start()) throw new InvalidOperationException($"Could not start {executable}");
+        if (!process.Start()) throw new InvalidOperationException($"Không thể khởi chạy {executable}");
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
         using var reg = cancellationToken.Register(() =>

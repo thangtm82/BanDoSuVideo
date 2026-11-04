@@ -1,7 +1,7 @@
 name: Windows desktop CI
 on:
   push:
-    branches: [main, "feat/**"]
+    branches: [main, "feat/**", "feature/**"]
   pull_request:
     branches: [main]
 jobs:

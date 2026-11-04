@@ -2,180 +2,180 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
-        Title="BanDoSu Studio Desktop" Height="860" Width="1420" MinWidth="940" MinHeight="650"
+        Title="Bản Đồ Sử Studio — Biên tập video" Height="860" Width="1420" MinWidth="940" MinHeight="650"
         WindowStartupLocation="CenterScreen" Closing="OnWindowClosing">
     <DockPanel>
         <Border DockPanel.Dock="Top" Background="#182B3B" Padding="14">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Foreground="White" FontSize="20" FontWeight="Bold" Text="BanDoSu Studio" VerticalAlignment="Center"/>
-                <TextBlock Foreground="#B5CBD8" FontSize="13" Margin="20,0,0,0" Text="Windows • Existing H2 map engine" VerticalAlignment="Center"/>
-                <TextBlock x:Name="ProjectHeader" Foreground="#F2D19E" Margin="22,0,0,0" VerticalAlignment="Center" Text="No project selected"/>
+                <TextBlock Foreground="White" FontSize="20" FontWeight="Bold" Text="Bản Đồ Sử Studio" VerticalAlignment="Center"/>
+                <TextBlock Foreground="#B5CBD8" FontSize="13" Margin="20,0,0,0" Text="Windows • Sử dụng engine bản đồ H2" VerticalAlignment="Center"/>
+                <TextBlock x:Name="ProjectHeader" Foreground="#F2D19E" Margin="22,0,0,0" VerticalAlignment="Center" Text="Chưa chọn dự án"/>
             </StackPanel>
         </Border>
         <Grid DockPanel.Dock="Bottom" Height="190">
             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
             <DockPanel Margin="7,4">
-                <TextBlock Text="Execution log" FontWeight="Bold" VerticalAlignment="Center"/>
-                <Button DockPanel.Dock="Right" Content="Cancel running operation" Click="CancelClick" HorizontalAlignment="Right"/>
+                <TextBlock Text="Nhật ký xử lý" FontWeight="Bold" VerticalAlignment="Center"/>
+                <Button DockPanel.Dock="Right" Content="Hủy tác vụ đang chạy" Click="CancelClick" HorizontalAlignment="Right"/>
             </DockPanel>
             <TextBox Grid.Row="1" Name="LogOutput" FontFamily="Consolas" FontSize="12"
                      IsReadOnly="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                      TextWrapping="NoWrap" AcceptsReturn="True"/>
         </Grid>
         <TabControl x:Name="MainTabs" Margin="8">
-            <TabItem Header="Projects">
+            <TabItem Header="Dự án">
                 <Grid Margin="8">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="320"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                     <StackPanel>
-                        <TextBlock FontSize="17" FontWeight="Bold" Text="Projects" Margin="4"/>
-                        <Button Content="Refresh projects" Click="RefreshProjectsClick"/>
+                        <TextBlock FontSize="17" FontWeight="Bold" Text="Danh sách dự án" Margin="4"/>
+                        <Button Content="Làm mới danh sách" Click="RefreshProjectsClick"/>
                         <ListBox Name="ProjectsList" Height="410" Margin="4" DisplayMemberPath="Title" SelectionChanged="ProjectsSelectionChanged"/>
-                        <TextBlock Text="Double-click project or select it once." TextWrapping="Wrap" Margin="5"/>
+                        <TextBlock Text="Chọn một dự án trong danh sách để tiếp tục." TextWrapping="Wrap" Margin="5"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Margin="16,0,0,0">
-                        <TextBlock Text="Create a project" FontSize="17" FontWeight="Bold" Margin="4"/>
-                        <TextBlock Text="Project folder name (letters, digits, hyphens)" Margin="4"/>
+                        <TextBlock Text="Tạo dự án mới" FontSize="17" FontWeight="Bold" Margin="4"/>
+                        <TextBlock Text="Tên thư mục dự án (chữ không dấu, số, dấu gạch nối)" Margin="4"/>
                         <TextBox Name="NewSlug" Text="hoa-lu-thang-long"/>
-                        <TextBlock Text="Title" Margin="4"/>
-                        <TextBox Name="NewTitle" Text="Hoa Lu - Thang Long 1010"/>
-                        <CheckBox Name="NewCaptions" Margin="8" Content="Enable karaoke captions" IsChecked="True"/>
-                        <Button Content="Create project" Click="CreateProjectClick" HorizontalAlignment="Left"/>
-                        <Button Content="Open project folder" Click="OpenProjectFolderClick" HorizontalAlignment="Left"/>
-                        <TextBlock TextWrapping="Wrap" Margin="6,16,0,0" Text="Projects stay inside the original H2 Studio folder. Every file remains compatible with the Node/Python renderer."/>
+                        <TextBlock Text="Tiêu đề video" Margin="4"/>
+                        <TextBox Name="NewTitle" Text="Hoa Lư - Thăng Long năm 1010"/>
+                        <CheckBox Name="NewCaptions" Margin="8" Content="Bật phụ đề karaoke" IsChecked="True"/>
+                        <Button Content="Tạo dự án" Click="CreateProjectClick" HorizontalAlignment="Left"/>
+                        <Button Content="Mở thư mục dự án" Click="OpenProjectFolderClick" HorizontalAlignment="Left"/>
+                        <TextBlock TextWrapping="Wrap" Margin="6,16,0,0" Text="Dự án được lưu trong thư mục H2 Studio gốc. Các tệp vẫn tương thích với công cụ dựng Node.js/Python."/>
                     </StackPanel>
                 </Grid>
             </TabItem>
-            <TabItem Header="Script &amp; Voice">
+            <TabItem Header="Kịch bản và giọng đọc">
                 <Grid Margin="8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <StackPanel Orientation="Horizontal">
-                        <Button Content="Open voice TXT" Click="LoadScriptClick"/>
-                        <Button Content="Save voice TXT" Click="SaveScriptClick"/>
-                        <TextBlock Text="Use | between narration segments. Create numbered MP3 files (1.mp3, 2.mp3, ...)." VerticalAlignment="Center" TextWrapping="Wrap"/>
+                        <Button Content="Mở tệp lời đọc TXT" Click="LoadScriptClick"/>
+                        <Button Content="Lưu tệp lời đọc TXT" Click="SaveScriptClick"/>
+                        <TextBlock Text="Dùng dấu | để ngăn cách các đoạn lời đọc. Đặt tên MP3 theo thứ tự: 1.mp3, 2.mp3, ..." VerticalAlignment="Center" TextWrapping="Wrap"/>
                     </StackPanel>
                     <TextBox Grid.Row="1" Name="ScriptEditor" FontSize="14" TextWrapping="Wrap" AcceptsReturn="True"
                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
                     <Grid Grid.Row="2" Margin="4">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                        <TextBlock Text="Voice MP3 folder" VerticalAlignment="Center"/>
+                        <TextBlock Text="Thư mục MP3" VerticalAlignment="Center"/>
                         <TextBox Name="VoiceFolder" Grid.Column="1"/>
-                        <Button Grid.Column="2" Content="Browse" Click="BrowseVoiceClick"/>
+                        <Button Grid.Column="2" Content="Chọn thư mục" Click="BrowseVoiceClick"/>
                     </Grid>
                     <StackPanel Grid.Row="3" Orientation="Horizontal">
-                        <Button Content="Validate MP3 count" Click="ValidateVoiceClick"/>
-                        <Button Content="Prepare voice timeline" Click="PrepareVoiceClick"/>
-                        <Button Content="Generate draft shots" Click="DraftShotsClick"/>
-                        <Button Content="Open timeline folder" Click="OpenTimelineClick"/>
+                        <Button Content="Kiểm tra số tệp MP3" Click="ValidateVoiceClick"/>
+                        <Button Content="Tạo timeline lời đọc" Click="PrepareVoiceClick"/>
+                        <Button Content="Tạo cảnh nháp" Click="DraftShotsClick"/>
+                        <Button Content="Mở thư mục timeline" Click="OpenTimelineClick"/>
                     </StackPanel>
                 </Grid>
             </TabItem>
-            <TabItem Header="Map Scenes">
+            <TabItem Header="Biên tập cảnh bản đồ">
                 <Grid Margin="8">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="3*"/></Grid.ColumnDefinitions>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <StackPanel Orientation="Horizontal" Grid.ColumnSpan="2">
-                        <Button Content="Reload shots.json" Click="LoadShotsClick"/>
-                        <Button Content="Validate &amp; save all shots" Click="SaveShotsClick"/>
-                        <TextBlock Text="Select a shot, edit its args JSON, then Apply. Existing extra fields are preserved." VerticalAlignment="Center"/>
+                        <Button Content="Tải lại shots.json" Click="LoadShotsClick"/>
+                        <Button Content="Kiểm tra và lưu toàn bộ cảnh" Click="SaveShotsClick"/>
+                        <TextBlock Text="Chọn cảnh, chỉnh tham số JSON rồi áp dụng. Các trường bổ sung được giữ nguyên." VerticalAlignment="Center"/>
                     </StackPanel>
                     <DataGrid Name="ShotsGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="ShotsSelectionChanged"
                               Margin="4" SelectionMode="Single">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="65"/>
-                            <DataGridTextColumn Header="Start" Binding="{Binding Start}" Width="65"/>
-                            <DataGridTextColumn Header="End" Binding="{Binding End}" Width="65"/>
-                            <DataGridTextColumn Header="Template" Binding="{Binding Template}" Width="80"/>
-                            <DataGridTextColumn Header="Narration" Binding="{Binding Line}" Width="*"/>
+                            <DataGridTextColumn Header="Bắt đầu" Binding="{Binding Start}" Width="65"/>
+                            <DataGridTextColumn Header="Kết thúc" Binding="{Binding End}" Width="65"/>
+                            <DataGridTextColumn Header="Mẫu cảnh" Binding="{Binding Template}" Width="80"/>
+                            <DataGridTextColumn Header="Lời thuyết minh" Binding="{Binding Line}" Width="*"/>
                         </DataGrid.Columns>
                     </DataGrid>
                     <Grid Grid.Row="1" Grid.Column="1" Margin="8,0,0,0">
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                         <StackPanel>
-                            <TextBlock Text="Map scene properties" FontSize="16" FontWeight="Bold" Margin="4"/>
+                            <TextBlock Text="Thuộc tính cảnh bản đồ" FontSize="16" FontWeight="Bold" Margin="4"/>
                             <WrapPanel>
-                                <TextBlock Text="View" VerticalAlignment="Center" Margin="5"/>
-                                <TextBox Name="MapViewInput" Width="130" ToolTip="Example: bac-bo"/>
-                                <TextBlock Text="Year" VerticalAlignment="Center" Margin="5"/>
+                                <TextBlock Text="Khung nhìn" VerticalAlignment="Center" Margin="5"/>
+                                <TextBox Name="MapViewInput" Width="130" ToolTip="Ví dụ mã khung nhìn: bac-bo"/>
+                                <TextBlock Text="Năm" VerticalAlignment="Center" Margin="5"/>
                                 <TextBox Name="MapYearInput" Width="75"/>
-                                <TextBlock Text="Label place" VerticalAlignment="Center" Margin="5"/>
-                                <TextBox Name="MapPlaceInput" Width="115" ToolTip="Example: hoa-lu"/>
-                                <Button Content="Apply map fields" Click="ApplyMapFieldsClick"/>
+                                <TextBlock Text="Địa danh" VerticalAlignment="Center" Margin="5"/>
+                                <TextBox Name="MapPlaceInput" Width="115" ToolTip="Ví dụ mã địa danh: hoa-lu"/>
+                                <Button Content="Áp dụng thuộc tính bản đồ" Click="ApplyMapFieldsClick"/>
                             </WrapPanel>
-                            <TextBlock Text="Advanced scene args (JSON)" FontWeight="SemiBold" Margin="4,5,4,0"/>
+                            <TextBlock Text="Tham số cảnh nâng cao (JSON)" FontWeight="SemiBold" Margin="4,5,4,0"/>
                         </StackPanel>
                         <TextBox Grid.Row="1" Name="ArgsEditor" AcceptsReturn="True" TextWrapping="NoWrap"
                                  FontFamily="Consolas" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
-                        <Button Grid.Row="2" Content="Apply scene changes" HorizontalAlignment="Left" Click="ApplyShotClick"/>
+                        <Button Grid.Row="2" Content="Áp dụng thay đổi cảnh" HorizontalAlignment="Left" Click="ApplyShotClick"/>
                     </Grid>
-                    <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Margin="5" Text="The original H2 bando pack interprets view, year, labels, arrows and region arguments. Changes are not reflected until saved/reloaded."/>
+                    <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Margin="5" Text="Pack bản đồ H2 sử dụng các tham số khung nhìn, năm, nhãn, mũi tên và vùng. Cần lưu rồi tải lại để thấy thay đổi."/>
                 </Grid>
             </TabItem>
-            <TabItem Header="Live Map">
+            <TabItem Header="Xem trước bản đồ">
                 <Grid Margin="8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <StackPanel Orientation="Horizontal">
-                        <Button Content="Start live map" Click="StartLiveClick"/>
-                        <Button Content="Refresh scene data" Click="RefreshLiveClick"/>
-                        <Button Content="Stop live map" Click="StopLiveClick"/>
-                        <TextBlock Name="LiveStatus" VerticalAlignment="Center" Margin="10,0,0,0" Text="Not running"/>
+                        <Button Content="Bắt đầu xem bản đồ" Click="StartLiveClick"/>
+                        <Button Content="Tải lại dữ liệu cảnh" Click="RefreshLiveClick"/>
+                        <Button Content="Dừng xem bản đồ" Click="StopLiveClick"/>
+                        <TextBlock Name="LiveStatus" VerticalAlignment="Center" Margin="10,0,0,0" Text="Chưa chạy"/>
                     </StackPanel>
                     <wv2:WebView2 Name="MapBrowser" Grid.Row="1" Margin="4"/>
                     <DockPanel Grid.Row="2">
-                        <Button Content="Seek" Click="SeekLiveClick" DockPanel.Dock="Right"/>
+                        <Button Content="Đến thời điểm" Click="SeekLiveClick" DockPanel.Dock="Right"/>
                         <Slider Name="MapTime" Minimum="0" Maximum="60" Value="0" Margin="12"/>
                     </DockPanel>
                 </Grid>
             </TabItem>
-            <TabItem Header="Render &amp; Preview">
+            <TabItem Header="Dựng và xem video">
                 <Grid Margin="8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <StackPanel>
                         <WrapPanel>
-                            <Button Content="Check scenes" Click="CheckRenderClick"/>
-                            <Button Content="Contact sheet" Click="SheetRenderClick"/>
-                            <Button Content="Preview first 30s" Click="PreviewRenderClick"/>
-                            <Button Content="Full render" Click="FullRenderClick"/>
-                            <Button Content="Mix audio" Click="MixRenderClick"/>
-                            <Button Content="Render thumbnail" Click="ThumbnailRenderClick"/>
+                            <Button Content="Kiểm tra cảnh" Click="CheckRenderClick"/>
+                            <Button Content="Bảng ảnh tổng hợp" Click="SheetRenderClick"/>
+                            <Button Content="Xem thử 30 giây đầu" Click="PreviewRenderClick"/>
+                            <Button Content="Dựng toàn bộ video" Click="FullRenderClick"/>
+                            <Button Content="Ghép âm thanh" Click="MixRenderClick"/>
+                            <Button Content="Xuất ảnh bìa" Click="ThumbnailRenderClick"/>
                         </WrapPanel>
                         <WrapPanel>
-                            <TextBlock Text="Thumbnail view" Margin="6" VerticalAlignment="Center"/>
+                            <TextBlock Text="Khung nhìn ảnh bìa" Margin="6" VerticalAlignment="Center"/>
                             <TextBox Name="ThumbViewInput" Width="115" Text="viet-nam"/>
-                            <TextBlock Text="Line 1" Margin="6" VerticalAlignment="Center"/>
-                            <TextBox Name="ThumbLineOne" Width="145" Text="LICH SU"/>
-                            <TextBlock Text="Line 2" Margin="6" VerticalAlignment="Center"/>
-                            <TextBox Name="ThumbLineTwo" Width="145" Text="BAN DO"/>
-                            <Button Content="Create thumbnail scene" Click="CreateThumbSceneClick"/>
+                            <TextBlock Text="Dòng 1" Margin="6" VerticalAlignment="Center"/>
+                            <TextBox Name="ThumbLineOne" Width="145" Text="LỊCH SỬ"/>
+                            <TextBlock Text="Dòng 2" Margin="6" VerticalAlignment="Center"/>
+                            <TextBox Name="ThumbLineTwo" Width="145" Text="BẢN ĐỒ"/>
+                            <Button Content="Tạo cảnh ảnh bìa" Click="CreateThumbSceneClick"/>
                         </WrapPanel>
                     </StackPanel>
                     <MediaElement Name="VideoPlayer" Grid.Row="1" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform"
                                   MediaFailed="VideoPlayerFailed" Margin="6" />
                     <StackPanel Grid.Row="2" Orientation="Horizontal">
-                        <Button Content="Play" Click="PlayVideoClick"/>
-                        <Button Content="Pause" Click="PauseVideoClick"/>
-                        <Button Content="Open output directory" Click="OpenOutputClick"/>
-                        <TextBlock Name="RenderStatus" Margin="15,0,0,0" VerticalAlignment="Center" Text="Ready"/>
+                        <Button Content="Phát" Click="PlayVideoClick"/>
+                        <Button Content="Tạm dừng" Click="PauseVideoClick"/>
+                        <Button Content="Mở thư mục kết quả" Click="OpenOutputClick"/>
+                        <TextBlock Name="RenderStatus" Margin="15,0,0,0" VerticalAlignment="Center" Text="Sẵn sàng"/>
                     </StackPanel>
                 </Grid>
             </TabItem>
-            <TabItem Header="Settings">
+            <TabItem Header="Cài đặt">
                 <StackPanel Margin="16">
-                    <TextBlock Text="H2 Studio root (folder containing render.mjs)" FontWeight="Bold"/>
+                    <TextBlock Text="Thư mục gốc H2 Studio (chứa render.mjs)" FontWeight="Bold"/>
                     <DockPanel>
-                        <Button DockPanel.Dock="Right" Content="Browse" Click="BrowseStudioClick"/>
+                        <Button DockPanel.Dock="Right" Content="Chọn thư mục" Click="BrowseStudioClick"/>
                         <TextBox Name="StudioRootText"/>
                     </DockPanel>
-                    <TextBlock Margin="4" Text="Node executable"/>
+                    <TextBlock Margin="4" Text="Tệp chạy Node.js"/>
                     <TextBox Name="NodeText"/>
-                    <TextBlock Margin="4" Text="Python executable"/>
+                    <TextBlock Margin="4" Text="Tệp chạy Python"/>
                     <TextBox Name="PythonText"/>
-                    <TextBlock Margin="4" Text="FFmpeg executable"/>
+                    <TextBlock Margin="4" Text="Tệp chạy FFmpeg"/>
                     <TextBox Name="FfmpegText"/>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                        <Button Content="Save settings" Click="SaveSettingsClick"/>
-                        <Button Content="Run Studio doctor" Click="DoctorClick"/>
+                        <Button Content="Lưu cài đặt" Click="SaveSettingsClick"/>
+                        <Button Content="Kiểm tra môi trường Studio" Click="DoctorClick"/>
                     </StackPanel>
-                    <TextBlock Margin="4,18" TextWrapping="Wrap" Text="The existing renderer is not bundled with this repository. Point to your working h2-2d-studio directory. Make sure npm install, playwright chromium, Python dependencies and FFmpeg are installed."/>
+                    <TextBlock Margin="4,18" TextWrapping="Wrap" Text="Ứng dụng không đóng gói kèm engine dựng video. Hãy chọn thư mục h2-2d-studio đã hoạt động, bảo đảm Node.js, Playwright Chromium, thư viện Python và FFmpeg được cài đặt."/>
                 </StackPanel>
             </TabItem>
         </TabControl>

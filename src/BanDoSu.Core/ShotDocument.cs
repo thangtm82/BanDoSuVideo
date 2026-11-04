@@ -11,7 +11,7 @@ public sealed class ShotDocument
     public ShotDocument(JsonNode root)
     {
         Root = root;
-        if (root["shots"] is not JsonArray) throw new FormatException("Expected shots array.");
+        if (root["shots"] is not JsonArray) throw new FormatException("Không tìm thấy danh sách cảnh (shots) hợp lệ.");
     }
 
     public JsonArray Shots => (JsonArray)Root["shots"]!;
@@ -33,7 +33,7 @@ public sealed class ShotDocument
     {
         if (index < 0 || index >= Shots.Count) throw new ArgumentOutOfRangeException(nameof(index));
         var node = JsonNode.Parse(json);
-        if (node is not JsonObject) throw new JsonException("Scene args must be a JSON object.");
+        if (node is not JsonObject) throw new JsonException("Tham số cảnh phải là một đối tượng JSON.");
         Shots[index]!["args"] = node;
         // draft_shots.py does not set tpl for narration-only shots.
         if (string.IsNullOrWhiteSpace(Shots[index]?["tpl"]?.ToString()))
@@ -69,9 +69,9 @@ public sealed class ShotDocument
         foreach (var s in Rows)
         {
             if (string.IsNullOrWhiteSpace(s.Id) || !ids.Add(s.Id))
-                throw new FormatException("Scene IDs must be nonempty and unique.");
+                throw new FormatException("Mã cảnh không được để trống hoặc trùng nhau.");
             if (s.End <= s.Start || s.Start < last - 0.001)
-                throw new FormatException($"Invalid scene time range at {s.Id}.");
+                throw new FormatException($"Khoảng thời gian không hợp lệ ở cảnh {s.Id}.");
             last = s.End;
         }
     }

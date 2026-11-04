@@ -17,11 +17,11 @@ public sealed class ProjectFiles
         if (string.IsNullOrWhiteSpace(name) || name is "." or ".." ||
             name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
             name.Contains('/') || name.Contains('\\') || name.Contains("..", StringComparison.Ordinal))
-            throw new ArgumentException("Invalid project name.", nameof(name));
+            throw new ArgumentException("Tên dự án không hợp lệ.", nameof(name));
         var root = Path.GetFullPath(ProjectsRoot) + Path.DirectorySeparatorChar;
         var candidate = Path.GetFullPath(Path.Combine(ProjectsRoot, name));
         if (!candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-            throw new UnauthorizedAccessException("Project path is outside the Studio root.");
+            throw new UnauthorizedAccessException("Đường dẫn dự án nằm ngoài thư mục gốc Studio.");
         return candidate;
     }
 
@@ -44,11 +44,11 @@ public sealed class ProjectFiles
         var root = ResolveProject(project);
         var full = Path.GetFullPath(Path.Combine(new[] { root }.Concat(parts).ToArray()));
         if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-            throw new UnauthorizedAccessException("Path escapes project folder.");
+            throw new UnauthorizedAccessException("Đường dẫn nằm ngoài thư mục dự án.");
         return full;
     }
 
-    public static JsonNode ReadJson(string path) => JsonNode.Parse(File.ReadAllText(path)) ?? throw new JsonException("Empty JSON.");
+    public static JsonNode ReadJson(string path) => JsonNode.Parse(File.ReadAllText(path)) ?? throw new JsonException("Tệp JSON trống.");
 
     public static void SaveJson(string path, JsonNode node)
     {
