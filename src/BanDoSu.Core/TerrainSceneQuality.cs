@@ -18,6 +18,13 @@ public static class TerrainSceneQuality
     private static readonly string[] PolygonLayers = ["fields", "water", "woods"];
     private static readonly string[] LineLayers = ["rivers", "roads", "tracks", "ditches", "treelines", "hedges"];
 
+    public static readonly IReadOnlySet<string> CameraRepairCodes =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "SUBJECT_OFF_CENTER", "SUBJECT_TOO_SMALL", "WEAK_FINALE",
+            "DISTANT_CAMERA", "TOPDOWN_SETTLEMENT", "CAMERA_OUTSIDE", "REPEATED_CAMERA"
+        };
+
     public static bool HasBlockingIssues(IEnumerable<Issue> issues) => issues.Any(i => i.Blocking);
 
     public static string Format(IEnumerable<Issue> issues) =>
@@ -145,8 +152,9 @@ public static class TerrainSceneQuality
 
         var issues = new List<Issue>(EvaluateWorlds(worlds));
         var previousCameras = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var node in shots)
+        for (var sceneIndex = 0; sceneIndex < shots.Count; sceneIndex++)
         {
+            var node = shots[sceneIndex];
             if (node is not JsonObject shot) continue;
             var id = shot["id"]?.ToString() ?? "(no id)";
             var tpl = shot["tpl"]?.ToString();
@@ -186,6 +194,51 @@ public static class TerrainSceneQuality
                 (HasItems(world, "buildings") || HasItems(world, "villages")))
                 issues.Add(new Issue("TOPDOWN_SETTLEMENT", id,
                     "Camera gần thẳng đứng, khó nhìn chiều cao công trình/khu dân cư."));
+            // Prioritize a visible subject already declared by the scene. Never fabricate
+            // unit locations or assume that historical labels carry real-world coordinates.
+            if (args["pins"] is JsonArray pins && pins.Count > 0 &&
+                world["units"] is JsonArray units &&
+                cam["c"] is JsonArray centerPoint && ValidPoint(centerPoint) &&
+                world["size"] is JsonArray frameSize && frameSize.Count == 2 &&
+                Number(frameSize[0]) is double frameW && Number(frameSize[1]) is double frameH)
+            {
+                var targetPositions = new List<JsonArray>();
+                foreach (var pin in pins.OfType<JsonObject>())
+                {
+                    var unitId = pin["u"]?.ToString();
+                    var unit = units.OfType<JsonObject>().FirstOrDefault(u =>
+                        u["id"]?.ToString() == unitId);
+                    if (unit?["p"] is JsonArray pos && ValidPoint(pos))
+                        targetPositions.Add(pos);
+                }
+                if (targetPositions.Count > 0)
+                {
+                    var cx = Number(centerPoint[0])!.Value;
+                    var cy = Number(centerPoint[1])!.Value;
+                    var closestDistance = targetPositions.Min(pos => Math.Sqrt(
+                        Math.Pow(cx - Number(pos[0])!.Value, 2) +
+                        Math.Pow(cy - Number(pos[1])!.Value, 2)));
+                    if (closestDistance > Math.Max(frameW, frameH) * 0.30)
+                        issues.Add(new Issue("SUBJECT_OFF_CENTER", id,
+                            "Camera cách xa các đối tượng đã đánh dấu; kiểm tra khung hình."));
+                    if (Number(cam["dist"]) is double focusDist &&
+                        focusDist > Math.Max(frameW, frameH) * 1.05)
+                        issues.Add(new Issue("SUBJECT_TOO_SMALL", id,
+                            "Camera quá xa đối tượng ghim, nhãn/đối tượng có thể rất nhỏ."));
+                }
+            }
+
+            if (sceneIndex == shots.Count - 1 && shots.Count > 1 &&
+                (line.Contains("kinh đô", StringComparison.OrdinalIgnoreCase) ||
+                 line.Contains("thăng long", StringComparison.OrdinalIgnoreCase) ||
+                 line.Contains("capital", StringComparison.OrdinalIgnoreCase)) &&
+                world["size"] is JsonArray finalSize && finalSize.Count == 2 &&
+                Number(finalSize[0]) is double finalW && Number(finalSize[1]) is double finalH &&
+                Number(cam["dist"]) is double finalDist &&
+                finalDist > Math.Max(finalW, finalH) * 0.85)
+                issues.Add(new Issue("WEAK_FINALE", id,
+                    "Cảnh kết thúc về kinh đô quá xa, thiếu điểm nhấn chủ thể."));
+
             var signature = cam.ToJsonString();
             if (previousCameras.TryGetValue(worldId, out var previous) && previous == signature)
                 issues.Add(new Issue("REPEATED_CAMERA", id,
