@@ -158,12 +158,17 @@ public sealed class AiTerrainSceneBuilder
         return built;
     }
 
-    public static void SaveWithBackup(string projectDirectory, ShotDocument candidate)
+    public static void SaveWithBackup(string projectDirectory, ShotDocument candidate,
+        string? expectedSourceJson = null)
     {
         candidate.Validate();
         var path = Path.Combine(projectDirectory, "story", "shots.json");
         if (!File.Exists(path)) throw new FileNotFoundException("Không tìm thấy shots.json để sao lưu.");
-        var current = new ShotDocument(JsonNode.Parse(File.ReadAllText(path))!);
+        var currentJson = File.ReadAllText(path);
+        if (expectedSourceJson != null &&
+            !string.Equals(currentJson, expectedSourceJson, StringComparison.Ordinal))
+            throw new IOException("shots.json đã bị chỉnh sửa trong lúc AI tạo cảnh. Không ghi đè thay đổi mới.");
+        var current = new ShotDocument(JsonNode.Parse(currentJson)!);
         current.Validate();
         if (current.Shots.Count != candidate.Shots.Count ||
             current.Rows.Where((row, i) =>
