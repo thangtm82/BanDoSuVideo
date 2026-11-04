@@ -286,6 +286,23 @@ try
         Check(customResponses.CallCount == 4 && customResponses.AllRequestsValid,
             "Custom Responses request schema, bearer token and URL prefix");
     }
+    var windowXamlPath = Path.Combine(Environment.CurrentDirectory,
+        "src", "BanDoSu.Desktop", "MainWindow.xaml");
+    var windowXaml = System.Xml.Linq.XDocument.Load(windowXamlPath);
+    System.Xml.Linq.XNamespace wpf = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+    System.Xml.Linq.XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+    var tabPanel = windowXaml.Descendants(wpf + "TabControl")
+        .First(x => (string?)x.Attribute(xaml + "Name") == "MainTabs");
+    var tabOrder = tabPanel.Elements(wpf + "TabItem")
+        .Select(x => (string?)x.Attribute("Header")).ToArray();
+    Check(tabOrder.Length >= 8 &&
+          tabOrder[0] == "Dự án" &&
+          tabOrder[1] == "AI Kịch bản" &&
+          tabOrder[2] == "Kịch bản và giọng đọc" &&
+          tabOrder[6] == "Cài đặt" &&
+          tabOrder[7] == "Quản lý môi trường",
+        "WPF main tabs follow project → AI script → voice → editor sequence");
+
     // TTS preparation works without a provider, but must never generate silent/fake MP3.
     var ttsPieces = TtsBatch.ParseSegments("Hoa Lư là kinh đô. | Năm 1010 dời đô về Thăng Long.");
     Check(ttsPieces.Count == 2 && ttsPieces[0].FileName == "1.mp3" &&
