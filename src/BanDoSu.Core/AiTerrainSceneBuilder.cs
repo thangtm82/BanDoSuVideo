@@ -82,6 +82,9 @@ public sealed class AiTerrainSceneBuilder
             đường đi và sông khác màu, núi có chi tiết đá/cây/thung lũng khi kịch bản yêu cầu.
             Camera cho mỗi cảnh phải chủ đích: toàn cảnh để định vị, trung cảnh mô tả, cận cảnh điểm nhấn;
             tránh 6 cảnh liên tiếp quá xa/quá cao. Không bịa tọa độ lịch sử để làm cảnh đẹp.
+            V4: Mỗi cảnh chọn chủ thể từ unit/pin đã khai báo; ưu tiên tâm camera gần chủ thể, cỡ trung/cận hợp lý.
+            Riêng cảnh cuối kể về kinh đô phải làm nổi bật khu cư trú/địa danh, tránh zoom out quá xa.
+            Mọi chỉnh sửa camera phải giữ world/units và tính liên tục câu chuyện; không tự suy diễn tọa độ lịch sử.
             Đừng thay đổi ID, thời gian hay lời đọc của cảnh.
             Phản hồi DUY NHẤT một JSON object hoàn chỉnh, không markdown hoặc code fence.
             """;
@@ -206,6 +209,84 @@ public sealed class AiTerrainSceneBuilder
                         " của cảnh " + ids[i] + ".");
         }
         var quality = TerrainSceneQuality.Evaluate(built.Root);
+        var repairable = quality.Where(i =>
+            TerrainSceneQuality.CameraRepairCodes.Contains(i.Code)).ToArray();
+        if (repairable.Length > 0)
+        {
+            progress?.Report("AI Terrain v4: phát hiện " + repairable.Length +
+                " vấn đề bố cục; yêu cầu AI sửa camera một lượt...");
+            var repairIds = repairable.Select(i => i.Subject).Distinct(StringComparer.Ordinal).ToArray();
+            var affectedScenes = new JsonArray();
+            foreach (var id in repairIds)
+            {
+                var shot = outputScenes.OfType<JsonObject>().FirstOrDefault(x =>
+                    x["id"]?.ToString() == id);
+                if (shot != null) affectedScenes.Add(shot.DeepClone());
+            }
+            var repairPrompt = requestRules +
+                "\nNHIỆM VỤ SỬA CAMERA V4: chỉ trả JSON {\\\"shots\\\":[{\\\"id\\\":\\\"...\\\",\\\"args\\\":{...}}]}. " +
+                "Trả ĐÚNG những shot đã cung cấp, cùng thứ tự, không tạo ID mới. " +
+                "Chỉ được đổi args.cam, args.camFrom, args.fly và args.drift. " +
+                "MỌI trường args khác phải giữ nguyên chính xác: world, pins, tags, do, note, sfx. " +
+                "Tâm camera hướng đến unit/pin đã khai báo; cảnh cuối lấy khu cư trú làm chủ thể. " +
+                "Tránh góc quá cao hoặc quá xa. Không bịa dữ liệu lịch sử.\n" +
+                "BÁO CÁO QC:\n" + string.Join("\n", repairable.Select(i =>
+                    i.Code + " [" + i.Subject + "] " + i.Message)) +
+                "\nWORLDS:\n" + Limit(worlds.ToJsonString(), 18000) +
+                "\nCÁC SHOT CẦN SỬA:\n" + Limit(affectedScenes.ToJsonString(), 20000);
+            try
+            {
+                var revised = ParseObject(await complete(repairPrompt, ct))["shots"] as JsonArray ??
+                    throw new InvalidDataException("AI không trả danh sách shot sửa camera.");
+                if (revised.Count != affectedScenes.Count)
+                    throw new InvalidDataException("AI trả sai số lượng shot sửa camera.");
+                for (var j = 0; j < revised.Count; j++)
+                {
+                    if (revised[j] is not JsonObject proposed ||
+                        affectedScenes[j] is not JsonObject previous ||
+                        proposed["id"]?.ToString() != previous["id"]?.ToString() ||
+                        proposed["args"] is not JsonObject newArgs)
+                        throw new InvalidDataException("Shot sửa camera sai ID hoặc thiếu args.");
+                    var oldArgs = (JsonObject)previous["args"]!;
+                    foreach (var (key, oldValue) in oldArgs)
+                        if (key is not ("cam" or "camFrom" or "fly" or "drift") &&
+                            !JsonNode.DeepEquals(oldValue, newArgs[key]))
+                            throw new InvalidDataException("AI sửa cả dữ liệu ngoài camera: " + key);
+                    if (newArgs.Select(x => x.Key).Except(oldArgs.Select(x => x.Key))
+                        .Any(x => x is not ("cam" or "camFrom" or "fly" or "drift")))
+                        throw new InvalidDataException("AI thêm trường ngoài camera.");
+                    var sceneId = previous["id"]!.ToString();
+                    ValidateScene(sceneId, previous["tpl"]!.ToString(), newArgs, worlds);
+                    var oldScene = outputScenes.OfType<JsonObject>().First(x => x["id"]?.ToString() == sceneId);
+                    var replacement = JsonNode.Parse(candidate.ToJsonString())!;
+                    var replacementShots = (JsonArray)replacement["shots"]!;
+                    var target = replacementShots.OfType<JsonObject>().First(x =>
+                        x["id"]?.ToString() == sceneId);
+                    target["args"] = newArgs.DeepClone();
+                    var oldCount = TerrainSceneQuality.Evaluate(candidate)
+                        .Count(i => i.Subject == sceneId && TerrainSceneQuality.CameraRepairCodes.Contains(i.Code));
+                    var newProblems = TerrainSceneQuality.Evaluate(replacement);
+                    var newCount = newProblems.Count(i => i.Subject == sceneId &&
+                        TerrainSceneQuality.CameraRepairCodes.Contains(i.Code));
+                    if (newCount < oldCount && !TerrainSceneQuality.HasBlockingIssues(newProblems))
+                    {
+                        oldScene["args"] = newArgs.DeepClone();
+                        progress?.Report("AI Terrain v4: cải thiện camera " + sceneId +
+                            " (" + oldCount + " → " + newCount + " cảnh báo).");
+                    }
+                    else
+                        progress?.Report("AI Terrain v4: giữ camera cũ " + sceneId +
+                            " vì lượt sửa không cải thiện QC.");
+                }
+            }
+            catch (InvalidDataException ex)
+            {
+                progress?.Report("AI Terrain v4: bỏ qua lượt sửa camera không hợp lệ: " + ex.Message);
+            }
+            built = new ShotDocument(candidate);
+            built.Validate();
+            quality = TerrainSceneQuality.Evaluate(built.Root);
+        }
         if (TerrainSceneQuality.HasBlockingIssues(quality))
             throw new InvalidDataException("AI Terrain QC không đạt: " + TerrainSceneQuality.Format(quality));
         foreach (var issue in quality)

@@ -622,6 +622,72 @@ try
         .Any(i => i.Code == "ANGULAR_RIVER") == false,
         "Terrain v3 accepts four-point polyline while flagging simple ones");
 
+    // V4: subject-aware framing and historical finale warning must reference existing units.
+    var v4WideFinale = JsonNode.Parse("""
+      {"worlds":{"W01":{"size":[2000,1500],"hills":[{"p":[0,0],"r":200,"h":50}],
+        "rivers":[{"pts":[[-600,-100],[-400,0],[0,100],[500,150]]}],
+        "villages":[{"p":[0,0],"n":12}],
+        "units":[{"id":"capital","p":[0,0],"kind":"flag","side":"pale"}]}},
+       "shots":[
+        {"id":"s001","start":0,"end":3,"line":"Giới thiệu địa hình",
+         "tpl":"tw","args":{"world":"W01","cam":{"c":[0,0],"dist":1800,"az":10,"el":50}}},
+        {"id":"s002","start":3,"end":6,"line":"Thăng Long trở thành kinh đô",
+         "tpl":"tw","args":{"world":"W01","pins":[{"u":"capital","t":"Thăng Long"}],
+           "cam":{"c":[900,650],"dist":2900,"az":0,"el":78}}}]}
+      """)!;
+    var v4Problems = TerrainSceneQuality.Evaluate(v4WideFinale);
+    Check(v4Problems.Any(i => i.Code == "SUBJECT_OFF_CENTER" && i.Subject == "s002") &&
+          v4Problems.Any(i => i.Code == "SUBJECT_TOO_SMALL" && i.Subject == "s002") &&
+          v4Problems.Any(i => i.Code == "WEAK_FINALE" && i.Subject == "s002"),
+          "Terrain v4 detects an off-center, distant weak capital finale");
+    var correctedCamera = (JsonObject)v4WideFinale["shots"]![1]!["args"]!["cam"]!;
+    correctedCamera["c"] = new JsonArray(0, 0);
+    correctedCamera["dist"] = 700;
+    correctedCamera["el"] = 42;
+    var correctedProblems = TerrainSceneQuality.Evaluate(v4WideFinale);
+    Check(!correctedProblems.Any(i => i.Subject == "s002" &&
+          TerrainSceneQuality.CameraRepairCodes.Contains(i.Code)),
+          "Terrain v4 passes a focused finale camera without changing world or voice");
+
+    // Integration: v4 requests focused AI repair and accepts only camera changes.
+    var v4Calls = 0;
+    Task<string> RepairTerrain(string prompt, CancellationToken ct)
+    {
+        v4Calls++;
+        if (prompt.Contains("NHIỆM VỤ WORLDS", StringComparison.Ordinal))
+            return Task.FromResult("""
+                {"worlds":{"hills":{"size":[2000,1500],
+                  "hills":[{"p":[0,0],"r":150,"h":70}],
+                  "rivers":[{"pts":[[-700,-100],[-250,0],[250,150],[650,200]]}],
+                  "villages":[{"p":[0,0],"n":10}],
+                  "units":[{"id":"capital","p":[0,0],"kind":"flag","side":"pale"}]}}}
+                """);
+        if (prompt.Contains("NHIỆM VỤ SỬA CAMERA V4", StringComparison.Ordinal))
+            return Task.FromResult("""
+                {"shots":[{"id":"s002","args":{
+                  "world":"hills","pins":[{"u":"capital","t":"Capital"}],
+                  "cam":{"c":[0,0],"dist":700,"az":10,"el":40}}}]}
+                """);
+        return Task.FromResult("""
+            {"shots":[
+              {"id":"s001","tpl":"tw","args":{"world":"hills",
+                "cam":{"c":[0,0],"dist":900,"az":5,"el":50}}},
+              {"id":"s002","tpl":"tw","args":{"world":"hills",
+                "pins":[{"u":"capital","t":"Capital"}],
+                "cam":{"c":[900,600],"dist":3500,"az":10,"el":78}}}]}
+            """);
+    }
+    // The second narration in the fixture is not a capital scene; pinned-unit
+    // size and off-center checks still trigger the repair independently.
+    var repairedTerrain = new AiTerrainSceneBuilder(terrainAssistant, RepairTerrain)
+        .GenerateAsync(terrainRequest, aiTerrainProject, testTerrainEngine)
+        .GetAwaiter().GetResult();
+    Check(v4Calls == 3 &&
+          repairedTerrain.Root["shots"]?[1]?["args"]?["cam"]?["dist"]?.ToString() == "700" &&
+          repairedTerrain.Root["shots"]?[1]?["line"]?.ToString() == "The camera follows the hill." &&
+          repairedTerrain.Root["shots"]?[1]?["args"]?["pins"]?[0]?["u"]?.ToString() == "capital",
+          "Terrain v4 AI repair preserves narration and pins while correcting scene camera");
+
     var concurrentEditBlocked = false;
     try { AiTerrainSceneBuilder.SaveWithBackup(aiTerrainProject, candidateTerrain, terrainDraft); }
     catch (IOException) { concurrentEditBlocked = true; }
