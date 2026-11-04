@@ -57,6 +57,7 @@
                         <CheckBox Name="NewCaptions" Margin="8" Content="Bật phụ đề karaoke" IsChecked="True"/>
                         <Button Content="Tạo dự án" Click="CreateProjectClick" HorizontalAlignment="Left"/>
                         <Button Content="Mở thư mục dự án" Click="OpenProjectFolderClick" HorizontalAlignment="Left"/>
+                        <Button Content="Nhập dự án H2 có sẵn (kể cả Terrain mẫu)" Click="ImportExistingProjectClick" HorizontalAlignment="Left"/>
                         <Button Content="Sao chép dự án cũ vào Workspace" Click="MigrateLegacyClick" HorizontalAlignment="Left"/>
                         <TextBlock x:Name="SelectedEngineInfo" Margin="4,10,4,4"
                                    TextWrapping="Wrap" Text="Engine của dự án: chưa chọn"/>
