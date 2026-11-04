@@ -113,9 +113,11 @@ public sealed class ProjectFiles
     /// Move a newly generated project to the independent workspace after successful creation.
     /// Never overwrite an existing project.
     /// </summary>
-    public string MoveNewProjectToWorkspace(string name)
+    public string MoveNewProjectToWorkspace(string name, string? sourceEngineRoot = null)
     {
-        var source = InRoot(LegacyProjectsRoot, name);
+        var sourceProjects = sourceEngineRoot is null ? LegacyProjectsRoot
+            : Path.GetFullPath(Path.Combine(sourceEngineRoot, "projects"));
+        var source = InRoot(sourceProjects, name);
         var destination = InRoot(ProjectsRoot, name);
         if (!Directory.Exists(source) || !File.Exists(Path.Combine(source, "config.json")))
             throw new FileNotFoundException("Engine chưa tạo dự án hợp lệ.", Path.Combine(source, "config.json"));
@@ -199,13 +201,67 @@ public sealed class ProjectFiles
         }
     }
 
+    /// <summary>
+    /// Imports an existing H2 project (including Terrain examples extracted
+    /// from a ZIP) without modifying the original directory.
+    /// </summary>
+    public string ImportExternalProjectToWorkspace(string projectDirectory)
+    {
+        var source = Path.GetFullPath(projectDirectory);
+        if (!Directory.Exists(source) || !File.Exists(Path.Combine(source, "config.json")))
+            throw new FileNotFoundException("Thư mục được chọn chưa có config.json hợp lệ.");
+        var name = Path.GetFileName(source.TrimEnd(Path.DirectorySeparatorChar));
+        ValidateName(name);
+        ValidateRoots(Settings);
+        var destination = InRoot(ProjectsRoot, name);
+        if (destination.Equals(source, StringComparison.OrdinalIgnoreCase) ||
+            destination.StartsWith(source.TrimEnd(Path.DirectorySeparatorChar) +
+                Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            throw new IOException("Không thể nhập dự án từ thư mục cha của Workspace hoặc chính thư mục đích.");
+        if (Directory.Exists(destination))
+            throw new IOException("Workspace đã có dự án '" + name + "'. Không ghi đè.");
+        var staging = destination + ".importing-" + Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(ProjectsRoot);
+        try
+        {
+            CopyDirectory(source, staging);
+            if (!File.Exists(Path.Combine(staging, "config.json")))
+                throw new IOException("Bản sao dự án thiếu config.json.");
+            var originals = Directory.GetFiles(source, "*", SearchOption.AllDirectories);
+            var copies = Directory.GetFiles(staging, "*", SearchOption.AllDirectories);
+            if (originals.Length != copies.Length)
+                throw new IOException("Số tệp dự án không trùng khớp.");
+            foreach (var original in originals)
+            {
+                var relative = Path.GetRelativePath(source, original);
+                var copied = Path.Combine(staging, relative);
+                if (!File.Exists(copied) || new FileInfo(original).Length != new FileInfo(copied).Length)
+                    throw new IOException("Bản sao dự án khác bản gốc: " + relative);
+            }
+            Directory.Move(staging, destination);
+            return destination;
+        }
+        finally
+        {
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        }
+    }
+
     private static void CopyDirectory(string source, string target)
     {
         Directory.CreateDirectory(target);
         foreach (var file in Directory.GetFiles(source))
+        {
+            if (File.GetAttributes(file).HasFlag(FileAttributes.ReparsePoint))
+                throw new IOException("Dự án nguồn chứa symbolic link/junction không hỗ trợ: " + file);
             File.Copy(file, Path.Combine(target, Path.GetFileName(file)), overwrite: false);
+        }
         foreach (var dir in Directory.GetDirectories(source))
+        {
+            if (File.GetAttributes(dir).HasFlag(FileAttributes.ReparsePoint))
+                throw new IOException("Dự án nguồn chứa symbolic link/junction không hỗ trợ: " + dir);
             CopyDirectory(dir, Path.Combine(target, Path.GetFileName(dir)));
+        }
     }
 
     public static JsonNode ReadJson(string path) => JsonNode.Parse(File.ReadAllText(path)) ?? throw new JsonException("Tệp JSON trống.");

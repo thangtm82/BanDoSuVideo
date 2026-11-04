@@ -26,8 +26,13 @@ public sealed class EnvironmentManager
 {
     private readonly StudioSettings _settings;
     private readonly StudioProcess _runner = new();
+    private readonly string _engineRoot;
 
-    public EnvironmentManager(StudioSettings settings) => _settings = settings;
+    public EnvironmentManager(StudioSettings settings, string? engineRoot = null)
+    {
+        _settings = settings;
+        _engineRoot = Path.GetFullPath(engineRoot ?? settings.StudioRoot);
+    }
 
     public static IReadOnlyList<DependencyKind> InstallationOrder { get; } =
     [
@@ -52,7 +57,7 @@ public sealed class EnvironmentManager
         _ => kind.ToString()
     };
 
-    private string Engine => Path.GetFullPath(_settings.StudioRoot);
+    private string Engine => _engineRoot;
     private string PrivatePython => Path.Combine(Engine, ".venv", "Scripts", "python.exe");
     private NodePackageTools NodeTools => new(_settings.NodeExecutable, Engine);
     private string FfprobeExecutable => SiblingTool(_settings.FfmpegExecutable, "ffprobe.exe");
@@ -157,7 +162,10 @@ public sealed class EnvironmentManager
             case DependencyKind.PythonPackages:
                 if (!File.Exists(PrivatePython))
                     return new(kind, name, false, "Chưa có Python .venv của engine.");
-                const string probe = "import importlib.util,sys;missing=[p for p in ('numpy','scipy','soundfile') if importlib.util.find_spec(p) is None];print('OK' if not missing else 'Thiếu: '+', '.join(missing));sys.exit(bool(missing))";
+                var modules = File.Exists(Path.Combine(Engine, "packs", "terrain", "dem.py"))
+                    ? "('numpy','scipy','soundfile','PIL')" : "('numpy','scipy','soundfile')";
+                var probe = "import importlib.util,sys;missing=[p for p in " + modules +
+                    " if importlib.util.find_spec(p) is None];print('OK' if not missing else 'Thiếu: '+', '.join(missing));sys.exit(bool(missing))";
                 result = await ProbeAsync(PrivatePython, ["-c", probe], Engine, cancellationToken);
                 return FromProcess(kind, name, result);
             default: return new(kind, name, false, "Chưa hỗ trợ.");
@@ -267,9 +275,12 @@ public sealed class EnvironmentManager
                     if (create.ExitCode != 0) return create;
                 }
                 var req = Path.Combine(Engine, "requirements.txt");
+                var terrainNeedsPillow = File.Exists(Path.Combine(Engine, "packs", "terrain", "dem.py"));
                 var args = File.Exists(req)
                     ? new[] { "-m", "pip", "install", "-r", req }
-                    : new[] { "-m", "pip", "install", "numpy", "scipy", "soundfile" };
+                    : terrainNeedsPillow
+                        ? new[] { "-m", "pip", "install", "numpy", "scipy", "soundfile", "Pillow" }
+                        : new[] { "-m", "pip", "install", "numpy", "scipy", "soundfile" };
                 log?.Invoke("Cài thư viện Python vào .venv của engine.");
                 return await _runner.RunAsync(PrivatePython, args, Engine, log, cancellationToken);
             }

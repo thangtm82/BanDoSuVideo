@@ -41,3 +41,9 @@ dotnet run --project src/BanDoSu.Desktop/BanDoSu.Desktop.csproj
 **Dự án cũ:** Cài đặt `settings.json` có đường dẫn ngoài vẫn được giữ. Nút **Dùng cấu trúc Portable cạnh EXE** chuyển sang bố cục mới khi bạn bấm **Lưu cài đặt**. Ứng dụng ghi nhận engine cũ để có thể hiển thị và sao chép các dự án cũ sang `Projects/` bằng nút tương ứng, không xóa dữ liệu nguồn. Nếu bạn nhập engine bằng nút **Nhập engine H2 vào studio**, ứng dụng chuyển sang chế độ Portable sau khi sao chép thành công.
 
 Xem [docs/INSTALL-WINDOWS.md](docs/INSTALL-WINDOWS.md) để biết các bước kiểm thử và giới hạn hiện tại.
+
+## Multi-Pack (Bản Đồ Sử + Terrain + pack mới)
+
+BanDoSu hỗ trợ cài nhiều engine H2 song song, phát hiện các pack ở `packs/<pack>/pack.js` và khóa dự án vào một phiên bản engine. Nhập `h2-terrain-studio.zip` ngay từ tab **Dự án → Nhập ZIP H2 / Terrain**, sau đó vào **Quản lý môi trường** để cài dependencies cho engine vừa nhập. Bạn cũng có thể nhập dự án mẫu `terrain-mau` hoặc cập nhật engine mới mà không ghi đè engine/dự án hiện tại.
+
+Xem hướng dẫn và các giới hạn đã xác minh: [Multi-Pack Studio](docs/MULTIPACK-STUDIO.md).

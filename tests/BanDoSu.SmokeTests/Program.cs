@@ -1,3 +1,5 @@
+using System.IO.Compression;
+using System.Text.Json.Nodes;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -348,6 +350,140 @@ try
         System.Text.Json.JsonSerializer.Serialize(settingsVoices))!;
     Check(restoredVoices.TtsVoiceIds.SequenceEqual(settingsVoices.TtsVoiceIds) &&
           restoredVoices.TtsSelectedVoiceId == "giọng-nữ", "TTS voice preferences round-trip");
+
+    // Multi-Pack: the default Bản Đồ Sử engine and imported Terrain engine
+    // remain independent; future packs are discovered dynamically.
+    var bandoPackDir = Path.Combine(engine, "packs", "bando");
+    Directory.CreateDirectory(bandoPackDir);
+    ProjectFiles.SaveText(Path.Combine(bandoPackDir, "pack.js"), "// default bando engine");
+    var installations = Path.Combine(root, "isolated-installations");
+    var catalog = new EngineCatalog(settings, installations);
+    Check(catalog.Discover().Any(x => x.Pack == "bando" && x.EngineId == "default"),
+        "Multi-Pack detects default Bản Đồ Sử engine");
+
+    var zipPath = Path.Combine(root, "h2-terrain-test.zip");
+    using (var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+    {
+        static void AddFile(ZipArchive z, string path, string content)
+        {
+            using var writer = new StreamWriter(z.CreateEntry(path).Open());
+            writer.Write(content);
+        }
+        const string prefix = "skills/lam-video-terrain/kit/";
+        AddFile(archive, prefix + "render.mjs", "// terrain renderer");
+        AddFile(archive, prefix + "player.html", "<html></html>");
+        AddFile(archive, prefix + "tools/new_project.py", "# fixture");
+        AddFile(archive, prefix + "tools/doctor.py", "# fixture");
+        AddFile(archive, prefix + "packs/terrain/pack.js", "// terrain pack");
+        AddFile(archive, prefix + "projects/private-voice/1.mp3", "private data omitted");
+        AddFile(archive, prefix + "node_modules/huge.txt", "npm dependency omitted");
+        AddFile(archive, "skills/kich-ban-terrain/SKILL.md", "Terrain script skill");
+        AddFile(archive, "skills/kich-ban-terrain/references/cau-truc.md", "9 nhịp Terrain");
+    }
+    var importedTerrain = catalog.ImportArchiveAsync(zipPath, "terrain-v1")
+        .GetAwaiter().GetResult();
+    Check(importedTerrain.Length == 1 &&
+          importedTerrain[0].Pack == "terrain" &&
+          importedTerrain[0].EngineId == "terrain-v1",
+        "Multi-Pack discovers terrain pack from nested H2 ZIP");
+    var terrainEngine = importedTerrain[0].EngineRoot;
+    Check(File.Exists(Path.Combine(terrainEngine, "render.mjs")) &&
+          File.Exists(Path.Combine(terrainEngine, "packs", "terrain", "pack.js")),
+        "Terrain renderer is installed side by side");
+    Check(!Directory.Exists(Path.Combine(terrainEngine, "projects")) &&
+          !Directory.Exists(Path.Combine(terrainEngine, "node_modules")),
+        "Multi-Pack importer skips user projects and npm caches");
+    Check(File.Exists(Path.Combine(terrainEngine, "skills", "kich-ban-terrain", "SKILL.md")),
+        "Terrain authoring skill imported from ZIP");
+    Check(File.Exists(Path.Combine(engine, "packs", "bando", "pack.js")),
+        "Original bando engine remains untouched");
+
+    var terrainStaging = Path.Combine(terrainEngine, "projects", "battle-terrain");
+    Directory.CreateDirectory(terrainStaging);
+    ProjectFiles.SaveText(Path.Combine(terrainStaging, "config.json"),
+        "{\"title\":\"Terrain Test\",\"pack\":\"terrain\",\"lang\":\"en\"}");
+    var movedTerrain = projects.MoveNewProjectToWorkspace("battle-terrain", terrainEngine);
+    EngineCatalog.WriteBinding(movedTerrain, importedTerrain[0]);
+    var active = catalog.ResolveForProject(movedTerrain);
+    Check(active.EngineId == "terrain-v1" && active.Pack == "terrain",
+        "Terrain project resolves its pinned renderer");
+    Check(EngineCatalog.GetProjectLanguage(movedTerrain) == "en",
+        "Terrain narration language comes from project config");
+    Check(catalog.ResolveForProject(copiedLegacy).Pack == "bando" ||
+          EngineCatalog.GetProjectPack(copiedLegacy) == "",
+        "Existing project data retains legacy compatibility");
+
+    var terrainSkillPath = AiScriptStudio.ResolveSkillRoot(root, terrainEngine, "terrain");
+    Check(new AiScriptStudio(terrainSkillPath).HasSkill,
+        "Terrain AI script skill loads without bando-only dia-danh.md");
+
+    var terrainShots = new ShotDocument(JsonNode.Parse("""
+    {"duration":14,"worlds":{"lrt":{"dem":{"c":[-77.2366,39.7922]}}},
+    "shots":[{"id":"s001","start":0,"end":7,"tpl":"tw",
+    "args":{"world":"lrt","cam":{"az":-10,"el":44},"do":[{"show":"maine"}]}},
+    {"id":"s002","start":7,"end":14,"tpl":"map2d",
+    "args":{"cam":{"dist":600},"labels":[{"text":"Gettysburg"}]}}]}
+    """)!);
+    terrainShots.SetInitialMapDefaults("terrain");
+    Check(terrainShots.Rows[0].Template == "tw" &&
+          terrainShots.GetArgsJson(0).Contains("maine"),
+        "Terrain templates, camera and actions are preserved");
+    terrainShots.UpdateArgs(0, """{"world":"lrt","cam":{"az":20},"do":[{"show":"maine"}]}""");
+    terrainShots.UpdateTemplate(1, "tw");
+    terrainShots.Validate();
+    Check(terrainShots.Root["worlds"]?["lrt"]?["dem"]?["c"]?[0]?.ToString() == "-77.2366" &&
+          terrainShots.Root["shots"]?[1]?["tpl"]?.ToString() == "tw" &&
+          !terrainShots.Root["shots"]![0]!["args"]!.AsObject().ContainsKey("view"),
+        "Terrain scene editor preserves worlds and never adds bando view");
+
+    var duplicateBlocked = false;
+    try { catalog.ImportArchiveAsync(zipPath, "terrain-v1").GetAwaiter().GetResult(); }
+    catch (IOException) { duplicateBlocked = true; }
+    Check(duplicateBlocked, "Engine updates cannot overwrite an existing version");
+
+    var newPack = Path.Combine(root, "future-kit");
+    Directory.CreateDirectory(Path.Combine(newPack, "tools"));
+    Directory.CreateDirectory(Path.Combine(newPack, "packs", "naval"));
+    ProjectFiles.SaveText(Path.Combine(newPack, "render.mjs"), "// future renderer");
+    ProjectFiles.SaveText(Path.Combine(newPack, "player.html"), "<html></html>");
+    ProjectFiles.SaveText(Path.Combine(newPack, "packs", "naval", "pack.js"), "// naval pack");
+    var futureOptions = catalog.ImportAsync(newPack, "future-v1").GetAwaiter().GetResult();
+    Check(futureOptions.Any(x => x.Pack == "naval") &&
+          catalog.Discover().Any(x => x.Pack == "naval"),
+        "New project types are discovered without changing application code");
+
+    var maliciousZip = Path.Combine(root, "traversal.zip");
+    using (var archive = ZipFile.Open(maliciousZip, ZipArchiveMode.Create))
+    {
+        using var writer = new StreamWriter(archive.CreateEntry("../outside.txt").Open());
+        writer.Write("unsafe");
+    }
+    var unsafeRejected = false;
+    try { catalog.ImportArchiveAsync(maliciousZip, "malicious").GetAwaiter().GetResult(); }
+    catch (InvalidDataException) { unsafeRejected = true; }
+    Check(unsafeRejected && !File.Exists(Path.Combine(root, "outside.txt")),
+        "ZIP path traversal blocked");
+
+    var terrainEnvironment = new EnvironmentManager(settings, terrainEngine);
+    var terrainDetected = terrainEnvironment.CheckAsync(DependencyKind.Engine).GetAwaiter().GetResult();
+    Check(terrainDetected.Installed, "Environment Manager checks the selected Terrain engine");
+
+    var unpackedExample = Path.Combine(root, "unpacked-sample", "terrain-mau");
+    Directory.CreateDirectory(Path.Combine(unpackedExample, "story"));
+    ProjectFiles.SaveText(Path.Combine(unpackedExample, "config.json"),
+        "{\"title\":\"Sample Terrain\",\"pack\":\"terrain\",\"lang\":\"en\"}");
+    ProjectFiles.SaveText(Path.Combine(unpackedExample, "story", "shots.json"),
+        "{\"worlds\":{},\"shots\":[]}");
+    var importedExample = projects.ImportExternalProjectToWorkspace(unpackedExample);
+    Check(File.Exists(Path.Combine(importedExample, "story", "shots.json")) &&
+          File.Exists(Path.Combine(unpackedExample, "story", "shots.json")),
+        "Existing Terrain sample imported without changing its original");
+    Check(catalog.ResolveForProject(importedExample).Pack == "terrain",
+        "Imported Terrain example finds the installed matching pack");
+    var exampleCollision = false;
+    try { projects.ImportExternalProjectToWorkspace(unpackedExample); }
+    catch (IOException) { exampleCollision = true; }
+    Check(exampleCollision, "Import cannot overwrite an existing workspace project");
 
     Console.WriteLine("PASS: all workspace/export smoke assertions.");
 }
