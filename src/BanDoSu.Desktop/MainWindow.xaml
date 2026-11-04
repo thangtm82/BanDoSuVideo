@@ -240,7 +240,11 @@
                         </StackPanel>
                         <TextBox Grid.Row="1" Name="ArgsEditor" AcceptsReturn="True" TextWrapping="NoWrap"
                                  FontFamily="Consolas" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
-                        <Button Grid.Row="2" Content="Áp dụng thay đổi cảnh" HorizontalAlignment="Left" Click="ApplyShotClick"/>
+                        <WrapPanel Grid.Row="2">
+                            <Button Content="Áp dụng thay đổi cảnh" Click="ApplyShotClick"/>
+                            <Button Content="Chỉnh worlds JSON (Terrain)" Click="EditWorldsClick"/>
+                            <Button Content="Tải dữ liệu độ cao DEM" Click="DownloadTerrainClick"/>
+                        </WrapPanel>
                     </Grid>
                     <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Margin="5" TextWrapping="Wrap" Text="Bản đồ 2D: view/year/labels và tpl=map. Terrain: tpl=tw hoặc map2d, tham số cam/camFrom/world/do và worlds ở story/shots.json. Không tự động chuyển đổi cảnh giữa các pack."/>
                 </Grid>
