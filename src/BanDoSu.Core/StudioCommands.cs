@@ -95,8 +95,9 @@ public sealed class StudioCommands
     {
         var ctx = ForProject(project);
         return Python(ctx.Root, ["tools/prep_voice.py", "--project", ctx.ProjectPath,
-            "--voice-dir", voiceDir, "--lines", lines, "--lang", _engines.ResolveForProject(
-                _projects.ResolveProject(project)).Language], log, ct);
+            "--voice-dir", voiceDir, "--lines", lines, "--lang",
+            EngineCatalog.GetProjectLanguage(_projects.ResolveProject(project),
+                _engines.ResolveForProject(_projects.ResolveProject(project)).Language)], log, ct);
     }
 
     public Task<ProcessResult> DraftShotsAsync(string project,
