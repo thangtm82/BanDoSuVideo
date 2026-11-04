@@ -1,3 +1,6 @@
+using System.Net;
+using System.Net.Http;
+using System.Text;
 using BanDoSu.Core;
 
 var root = Path.Combine(Path.GetTempPath(), "bandosu-tests-" + Guid.NewGuid().ToString("N"));
@@ -158,6 +161,47 @@ try
     Check(File.Exists(Path.Combine(migrated, "config.json")), "legacy project copied into portable workspace");
     Check(File.Exists(legacyConfig), "legacy source preserved after portable migration");
 
+    var skillFixture = Path.Combine(root, "skills", "kich-ban-bandosu");
+    Directory.CreateDirectory(Path.Combine(skillFixture, "references"));
+    ProjectFiles.SaveText(Path.Combine(skillFixture, "SKILL.md"), "Viết kịch bản Bản Đồ Sử.");
+    ProjectFiles.SaveText(Path.Combine(skillFixture, "references", "cau-truc.md"), "Kể chuyện bảy nhịp.");
+    ProjectFiles.SaveText(Path.Combine(skillFixture, "references", "dia-danh.md"), "hoa-lu, thang-long");
+    var generatedScript = string.Join(" ", Enumerable.Repeat("Chúng ta nhìn về vùng đất Hoa Lư và Thăng Long.", 65));
+    var (voiceTest, segmentCount) = AiScriptStudio.MakeVoice(generatedScript);
+    Check(segmentCount > 5, "script automatically split into voice segments");
+    Check(AiScriptStudio.EquivalentNarration(generatedScript, voiceTest), "voice text identical to script");
+    Check(voiceTest.Split('|').All(x => AiScriptStudio.CountWords(x) <= 55),
+        "voice segments respect maximum length");
+    var corruptedVoice = voiceTest.Replace("Hoa Lư", "Hà Nội");
+    Check(!AiScriptStudio.EquivalentNarration(generatedScript, corruptedVoice),
+        "voice validation rejects different transcript");
+    var openAiHandler = new FakeAiHandler(generatedScript, gemini: false);
+    using (var http = new HttpClient(openAiHandler))
+    {
+        var ai = new AiScriptStudio(skillFixture, http);
+        var output = ai.GenerateAsync(new AiScriptRequest(AiScriptProvider.OpenAI,
+            "test-model", "secret-test-token", "Vì sao Hoa Lư chuyển về Thăng Long?"),
+            "hoa-lu-test").GetAwaiter().GetResult();
+        Check(output.VoiceSegments == segmentCount, "OpenAI result split");
+        Check(output.MapPlan.Contains("Bản đồ"), "map plan generated");
+        Check(output.Package.Contains("YouTube"), "YouTube package generated");
+        Check(openAiHandler.CallCount == 3, "OpenAI three-step generation");
+        Check(openAiHandler.AllRequestsAuthorized, "OpenAI bearer token header");
+        AiScriptStudio.ValidateBundle(output.Script, output.Voice, output.MapPlan, output.Package);
+        Check(AiScriptStudio.EquivalentNarration(output.Script, output.Voice),
+            "generated artifacts consistent");
+    }
+    var geminiHandler = new FakeAiHandler(generatedScript, gemini: true);
+    using (var http = new HttpClient(geminiHandler))
+    {
+        var ai = new AiScriptStudio(skillFixture, http);
+        var output = ai.GenerateAsync(new AiScriptRequest(AiScriptProvider.Gemini,
+            "test-gemini", "secret-gemini-key", "Vì sao Hoa Lư chuyển về Thăng Long?"),
+            "hoa-lu-test").GetAwaiter().GetResult();
+        Check(output.VoiceSegments > 5, "Gemini response parsed");
+        Check(geminiHandler.CallCount == 3, "Gemini three-step generation");
+        Check(geminiHandler.AllRequestsAuthorized, "Gemini x-goog-api-key header, no URL secrets");
+    }
     Console.WriteLine("PASS: all workspace/export smoke assertions.");
 }
 finally
@@ -169,4 +213,48 @@ static void Check(bool value, string name)
 {
     if (!value) throw new Exception("FAIL: " + name);
     Console.WriteLine("PASS: " + name);
+}
+
+sealed class FakeAiHandler : HttpMessageHandler
+{
+    private readonly string _script;
+    private readonly bool _gemini;
+    public int CallCount { get; private set; }
+    public bool AllRequestsAuthorized { get; private set; } = true;
+
+    public FakeAiHandler(string script, bool gemini)
+    {
+        _script = script;
+        _gemini = gemini;
+    }
+
+    protected override async Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        CallCount++;
+        var token = _gemini ? "secret-gemini-key" : "secret-test-token";
+        var header = _gemini
+            ? request.Headers.TryGetValues("x-goog-api-key", out var values) &&
+                values.Contains(token)
+            : request.Headers.Authorization?.Scheme == "Bearer" &&
+                request.Headers.Authorization.Parameter == token;
+        AllRequestsAuthorized &= header && !request.RequestUri!.ToString().Contains(token);
+        var body = await request.Content!.ReadAsStringAsync(cancellationToken);
+        var answer = body.Contains("NHIỆM VỤ 2", StringComparison.Ordinal) ? "# Bản đồ\\nCẦN KIỂM CHỨNG"
+            : body.Contains("NHIỆM VỤ 3", StringComparison.Ordinal) ? "# Gói YouTube\\nCẦN KIỂM CHỨNG"
+            : _script;
+        var response = _gemini
+            ? System.Text.Json.JsonSerializer.Serialize(new
+            {
+                candidates = new[] { new { content = new { parts = new[] { new { text = answer } } } } }
+            })
+            : System.Text.Json.JsonSerializer.Serialize(new
+            {
+                output = new[] { new { content = new[] { new { text = answer } } } }
+            });
+        return new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(response, Encoding.UTF8, "application/json")
+        };
+    }
 }
