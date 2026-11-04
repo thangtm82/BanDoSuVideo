@@ -71,6 +71,28 @@ try
     Check(rejected, "workspace cannot overlap engine");
 
     Check(StudioCommands.ProjectArg("legacy") == "projects/legacy", "legacy CLI helper");
+    // Environment check is read-only; no installers are run in smoke tests.
+    var environment = new EnvironmentManager(settings);
+    Check(EnvironmentManager.InstallationOrder.Count == 10, "environment dependency catalog");
+    Check(EnvironmentManager.WinGetId(DependencyKind.Node) == "OpenJS.NodeJS.LTS", "official Node WinGet mapping");
+    Check(EnvironmentManager.WinGetId(DependencyKind.PlaywrightChromium) is null, "Playwright installed per project");
+    var missingEngine = environment.CheckAsync(DependencyKind.Engine).GetAwaiter().GetResult();
+    Check(!missingEngine.Installed && !missingEngine.CanInstall, "missing engine is not auto-installed");
+    ProjectFiles.SaveText(Path.Combine(engine, "render.mjs"), "// smoke");
+    Directory.CreateDirectory(Path.Combine(engine, "tools"));
+    var validEngine = environment.CheckAsync(DependencyKind.Engine).GetAwaiter().GetResult();
+    Check(validEngine.Installed, "engine detected after setup");
+    if (OperatingSystem.IsWindows())
+    {
+        var commandFile = Path.Combine(root, "verify cmd script.cmd");
+        File.WriteAllText(commandFile, "@echo off\r\necho environment-command-ok\r\n");
+        var commandResult = new StudioProcess().RunAsync(commandFile, Array.Empty<string>(), root)
+            .GetAwaiter().GetResult();
+        Check(commandResult.ExitCode == 0 && commandResult.Output.Contains("environment-command-ok"),
+            "Windows batch commands supported by process runner");
+    }
+
+
     Console.WriteLine("PASS: all workspace/export smoke assertions.");
 }
 finally
