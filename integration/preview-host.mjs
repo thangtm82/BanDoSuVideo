@@ -9,7 +9,10 @@ const value = (k) => argv[argv.indexOf(k) + 1];
 const root = path.resolve(value('--studio') || '.');
 const projectName = value('--project') || '';
 if (!/^[a-zA-Z0-9_-]+$/.test(projectName)) throw new Error('Invalid project name');
-const project = path.resolve(root, 'projects', projectName);
+const configuredDir = value('--project-dir');
+const project = configuredDir ? path.resolve(configuredDir) : path.resolve(root, 'projects', projectName);
+if (configuredDir && path.basename(project).toLowerCase() !== projectName.toLowerCase())
+  throw new Error('Project directory/name mismatch');
 if (!fs.existsSync(path.join(root, 'player.html')) || !fs.existsSync(path.join(project, 'config.json')))
   throw new Error('Studio/player or project config missing');
 
