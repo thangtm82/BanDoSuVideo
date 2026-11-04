@@ -26,8 +26,13 @@ public sealed class EnvironmentManager
 {
     private readonly StudioSettings _settings;
     private readonly StudioProcess _runner = new();
+    private readonly string _engineRoot;
 
-    public EnvironmentManager(StudioSettings settings) => _settings = settings;
+    public EnvironmentManager(StudioSettings settings, string? engineRoot = null)
+    {
+        _settings = settings;
+        _engineRoot = Path.GetFullPath(engineRoot ?? settings.StudioRoot);
+    }
 
     public static IReadOnlyList<DependencyKind> InstallationOrder { get; } =
     [
@@ -52,7 +57,7 @@ public sealed class EnvironmentManager
         _ => kind.ToString()
     };
 
-    private string Engine => Path.GetFullPath(_settings.StudioRoot);
+    private string Engine => _engineRoot;
     private string PrivatePython => Path.Combine(Engine, ".venv", "Scripts", "python.exe");
     private NodePackageTools NodeTools => new(_settings.NodeExecutable, Engine);
     private string FfprobeExecutable => SiblingTool(_settings.FfmpegExecutable, "ffprobe.exe");
