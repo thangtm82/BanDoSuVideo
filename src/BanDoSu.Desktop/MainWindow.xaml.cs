@@ -59,7 +59,7 @@ public partial class MainWindow : Window
         LogOutput.ScrollToEnd();
     });
 
-    private void Alert(string message) => MessageBox.Show(this, message, "BanDoSu Studio",
+    private void Alert(string message) => MessageBox.Show(this, message, "Bản Đồ Sử Studio",
         MessageBoxButton.OK, MessageBoxImage.Information);
 
     private bool HasStudio()
@@ -428,7 +428,7 @@ public partial class MainWindow : Window
         if (!HasProject()) return;
         var path = _projects.FileInProject(_selected!.Name, "scenes", "shots", "thumb.js");
         if (File.Exists(path) && MessageBox.Show(this, "Thay thế cảnh ảnh bìa hiện tại?",
-                "Confirm overwrite", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                "Xác nhận ghi đè", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
             return;
         try
         {
@@ -470,7 +470,7 @@ public partial class MainWindow : Window
 
     private void BrowseStudioClick(object sender, RoutedEventArgs e)
     {
-        var dlg = new OpenFolderDialog { Title = "Select H2 Studio folder (render.mjs)" };
+        var dlg = new OpenFolderDialog { Title = "Chọn thư mục H2 Studio (chứa render.mjs)" };
         if (dlg.ShowDialog(this) == true) StudioRootText.Text = dlg.FolderName;
     }
 
