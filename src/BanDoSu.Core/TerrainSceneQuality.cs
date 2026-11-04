@@ -68,6 +68,41 @@ public static class TerrainSceneQuality
                             issues.Add(new Issue("POINT_INVALID", id,
                                 layer + "[" + i + "] thiếu vị trí p=[x,y].", true));
                     }
+                    // Validate geometry and proportions, not just field presence.
+                    var pointList = feature["pts"] as JsonArray;
+                    if (pointList is not null && ValidPoints(pointList,
+                        PolygonLayers.Contains(layer) ? 3 : 2))
+                    {
+                        if (PolygonLayers.Contains(layer))
+                        {
+                            var polygonArea = PolygonArea(pointList);
+                            var worldArea = WorldArea(world);
+                            if (worldArea > 0 && polygonArea / worldArea > 0.11 &&
+                                layer == "fields")
+                                issues.Add(new Issue("OVERSIZED_FIELD", id,
+                                    layer + "[" + i + "] chiếm hơn 11% bản đồ, dễ thành mảng màu lớn phẳng."));
+                            if (polygonArea < 0.01)
+                                issues.Add(new Issue("DEGENERATE_POLYGON", id,
+                                    layer + "[" + i + "] có diện tích gần bằng 0.", true));
+                        }
+                        if (LineLayers.Contains(layer))
+                        {
+                            if (layer == "rivers" && pointList.Count < 4)
+                                issues.Add(new Issue("ANGULAR_RIVER", id,
+                                    "Sông chỉ có " + pointList.Count +
+                                    " điểm; thêm điểm cong có cơ sở hoặc phân đoạn mượt hơn."));
+                            if (HasSharpBends(pointList))
+                                issues.Add(new Issue("SHARP_BENDS", id,
+                                    layer + "[" + i + "] có góc gấp khúc gắt; kiểm tra lại đường nét."));
+                        }
+                        if (WorldArea(world) > 0 && GeometryBoundsOutside(pointList, world))
+                            issues.Add(new Issue("GEOMETRY_OUTSIDE", id,
+                                layer + "[" + i + "] có điểm nằm ngoài world; kiểm tra tọa độ."));
+                    }
+                    if (layer is "buildings" or "villages" &&
+                        ValidPoint(feature["p"]) && IsOutside(feature["p"]!, world))
+                        issues.Add(new Issue("BUILDING_OUTSIDE", id,
+                            layer + "[" + i + "] nằm ngoài world."));
                 }
             }
 
@@ -141,6 +176,16 @@ public static class TerrainSceneQuality
 
             var cam = args["cam"] as JsonObject;
             if (cam is null) continue;
+            // This is an approximate framing heuristic, NOT a projected screen-space measurement.
+            if (world["size"] is JsonArray dimensions && dimensions.Count == 2 &&
+                Number(dimensions[0]) is double w && Number(dimensions[1]) is double d &&
+                Number(cam["dist"]) is double dist && dist > Math.Max(w, d) * 1.5)
+                issues.Add(new Issue("DISTANT_CAMERA", id,
+                    "Khoảng cách camera > 1,5 lần chiều rộng world; chủ thể có thể quá nhỏ."));
+            if (Number(cam["el"]) is double elev && elev > 72 &&
+                (HasItems(world, "buildings") || HasItems(world, "villages")))
+                issues.Add(new Issue("TOPDOWN_SETTLEMENT", id,
+                    "Camera gần thẳng đứng, khó nhìn chiều cao công trình/khu dân cư."));
             var signature = cam.ToJsonString();
             if (previousCameras.TryGetValue(worldId, out var previous) && previous == signature)
                 issues.Add(new Issue("REPEATED_CAMERA", id,
@@ -154,6 +199,60 @@ public static class TerrainSceneQuality
                     "Tâm camera nằm ngoài ranh giới world; có thể nhìn thấy vùng trống."));
         }
         return issues;
+    }
+
+    private static double WorldArea(JsonObject world)
+    {
+        if (world["size"] is not JsonArray size || size.Count != 2 ||
+            Number(size[0]) is not double w || Number(size[1]) is not double d)
+            return 0;
+        return w * d;
+    }
+
+    private static double PolygonArea(JsonArray points)
+    {
+        var sum = 0.0;
+        for (var i = 0; i < points.Count; i++)
+        {
+            var a = (JsonArray)points[i]!;
+            var b = (JsonArray)points[(i + 1) % points.Count]!;
+            sum += Number(a[0])!.Value * Number(b[1])!.Value -
+                   Number(b[0])!.Value * Number(a[1])!.Value;
+        }
+        return Math.Abs(sum) / 2;
+    }
+
+    private static bool GeometryBoundsOutside(JsonArray points, JsonObject world) =>
+        points.Any(point => IsOutside(point!, world));
+
+    private static bool IsOutside(JsonNode point, JsonObject world)
+    {
+        if (world["size"] is not JsonArray size || size.Count != 2 ||
+            Number(size[0]) is not double width || Number(size[1]) is not double depth ||
+            point is not JsonArray p || p.Count != 2 ||
+            Number(p[0]) is not double x || Number(p[1]) is not double y) return false;
+        return Math.Abs(x) > width / 2 || Math.Abs(y) > depth / 2;
+    }
+
+    private static bool HasSharpBends(JsonArray points)
+    {
+        for (var i = 1; i < points.Count - 1; i++)
+        {
+            var a = (JsonArray)points[i - 1]!;
+            var b = (JsonArray)points[i]!;
+            var c = (JsonArray)points[i + 1]!;
+            var x1 = Number(a[0])!.Value - Number(b[0])!.Value;
+            var y1 = Number(a[1])!.Value - Number(b[1])!.Value;
+            var x2 = Number(c[0])!.Value - Number(b[0])!.Value;
+            var y2 = Number(c[1])!.Value - Number(b[1])!.Value;
+            var n1 = Math.Sqrt(x1 * x1 + y1 * y1);
+            var n2 = Math.Sqrt(x2 * x2 + y2 * y2);
+            if (n1 < 0.001 || n2 < 0.001) continue;
+            // Interior angle < 65 degrees produces a conspicuous acute kink.
+            if ((x1 * x2 + y1 * y2) / (n1 * n2) > Math.Cos(65 * Math.PI / 180))
+                return true;
+        }
+        return false;
     }
 
     private static bool HasItems(JsonObject obj, string key) =>

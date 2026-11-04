@@ -594,6 +594,34 @@ try
     Check(!File.ReadAllBytes(draftPath).Take(3).SequenceEqual(new byte[] { 0xEF, 0xBB, 0xBF }),
         "AI Terrain writes shots.json in UTF-8 without BOM");
 
+    // V3 geometry/composition regression: sample must be diagnosed without changing shots.
+    var v3FlatScene = JsonNode.Parse("""
+      {"worlds":{"W01":{"size":[1000,800],
+        "hills":[{"p":[0,0],"r":180,"h":60}],
+        "fields":[{"pts":[[-450,-350],[450,-350],[450,350],[-450,350]],"color":"#aaff66"}],
+        "rivers":[{"pts":[[-400,0],[0,0],[400,300]],"w":20}],
+        "villages":[{"p":[0,0],"n":8}]}},
+       "shots":[{"id":"s001","start":0,"end":2,"line":"Kinh đô bên sông",
+         "tpl":"tw","args":{"world":"W01",
+           "cam":{"c":[0,0],"dist":2100,"az":0,"el":80}}}]}
+      """)!;
+    var v3Issues = TerrainSceneQuality.Evaluate(v3FlatScene);
+    Check(v3Issues.Any(i => i.Code == "OVERSIZED_FIELD") &&
+          v3Issues.Any(i => i.Code == "ANGULAR_RIVER") &&
+          v3Issues.Any(i => i.Code == "DISTANT_CAMERA") &&
+          v3Issues.Any(i => i.Code == "TOPDOWN_SETTLEMENT"),
+          "Terrain v3 detects oversized polygon, angular river and distant top-down camera");
+
+    var v3InvalidPolyline = JsonNode.Parse("""
+      {"worlds":{"W01":{"size":[1000,800],
+        "hills":[{"p":[0,0],"r":180,"h":40}],
+        "rivers":[{"pts":[[0,0],[0,0],[15,0],[20,0]]}]}},
+       "shots":[]}
+      """)!;
+    Check(TerrainSceneQuality.Evaluate(v3InvalidPolyline)
+        .Any(i => i.Code == "ANGULAR_RIVER") == false,
+        "Terrain v3 accepts four-point polyline while flagging simple ones");
+
     var concurrentEditBlocked = false;
     try { AiTerrainSceneBuilder.SaveWithBackup(aiTerrainProject, candidateTerrain, terrainDraft); }
     catch (IOException) { concurrentEditBlocked = true; }
