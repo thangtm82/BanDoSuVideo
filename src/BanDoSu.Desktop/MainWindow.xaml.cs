@@ -802,6 +802,7 @@ public partial class MainWindow : Window
         if (!ConfirmCustomEndpoint(request)) return;
         var project = _selected.Directory;
         var slug = _selected.Name;
+        var snapshot = File.ReadAllText(Path.Combine(project, "story", "shots.json"));
         using var cts = new CancellationTokenSource();
         _terrainAiCts = cts;
         AiBuildTerrainButton.IsEnabled = false;
@@ -839,7 +840,7 @@ public partial class MainWindow : Window
                 AiTerrainStatus.Text = "Đã từ chối áp dụng. shots.json không thay đổi.";
                 return;
             }
-            AiTerrainSceneBuilder.SaveWithBackup(project, built);
+            AiTerrainSceneBuilder.SaveWithBackup(project, built, snapshot);
             LoadShots();
             AiTerrainStatus.Text = "Đã lưu " + built.Shots.Count +
                 " cảnh AI và sao lưu shots.json cũ. Hãy chạy Kiểm tra cảnh và Bảng ảnh tổng hợp.";
