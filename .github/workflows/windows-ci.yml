@@ -20,6 +20,17 @@ jobs:
         run: dotnet run --project tests/BanDoSu.SmokeTests/BanDoSu.SmokeTests.csproj -c Release
       - name: Publish Windows desktop
         run: dotnet publish src/BanDoSu.Desktop/BanDoSu.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o artifacts/BanDoSuDesktop
+      - name: Verify packaged AI script skill
+        shell: pwsh
+        run: |
+          foreach ($file in @(
+            'skills/kich-ban-bandosu/SKILL.md',
+            'skills/kich-ban-bandosu/references/cau-truc.md',
+            'skills/kich-ban-bandosu/references/dia-danh.md'
+          )) {
+            $path = Join-Path 'artifacts/BanDoSuDesktop' $file
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Packaged skill missing: $path" }
+          }
       - name: Test portable engine packaging (fixture only)
         shell: pwsh
         run: |

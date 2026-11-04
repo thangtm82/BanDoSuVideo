@@ -10,6 +10,11 @@
     <ProjectReference Include="../BanDoSu.Core/BanDoSu.Core.csproj" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
     <Content Include="../../integration/preview-host.mjs" Link="integration/preview-host.mjs" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../skills/kich-ban-bandosu/**/*">
+      <Link>skills/kich-ban-bandosu/%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
   <!-- Pass -p:H2StudioSource="D:\\BanDoSu\\h2-2d-studio" to publish a full portable ZIP.
        The engine is not distributed in this GitHub repo and is NEVER silently synthesized. -->

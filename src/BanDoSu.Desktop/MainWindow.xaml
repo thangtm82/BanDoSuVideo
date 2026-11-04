@@ -235,6 +235,80 @@
                     <TextBlock Grid.Row="4" Margin="5" TextWrapping="Wrap" Text="Thứ tự: Node.js/npm → Python → FFmpeg/FFprobe → WebView2 → gói npm → Playwright Chromium → thư viện Python trong .venv. Sau khi cài runtime hệ thống, có thể cần khởi động lại ứng dụng để nhận PATH mới."/>
                 </Grid>
             </TabItem>
+            <TabItem Header="AI Kịch bản">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="AI Kịch bản · kich-ban-bandosu" FontSize="18" FontWeight="Bold" Margin="4"/>
+                        <TextBlock Text="Tạo kịch bản lịch sử, lời đọc chia đoạn, kế hoạch bản đồ và nội dung YouTube. Cần đọc và xác minh dữ kiện sử trước khi xuất bản. Không tự render từ file 03." Margin="4" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Grid Grid.Row="1" Margin="2,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="180"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Chủ đề" VerticalAlignment="Center" Margin="5"/>
+                        <TextBox x:Name="AiTopicInput" Grid.Column="1" Text="Vì sao Lý Thái Tổ dời đô từ Hoa Lư về Thăng Long?" Margin="3"/>
+                        <TextBlock Grid.Column="2" Text="Thời lượng" VerticalAlignment="Center" Margin="5"/>
+                        <ComboBox x:Name="AiDurationInput" Grid.Column="3" SelectedIndex="0" Margin="3">
+                            <ComboBoxItem Content="12 phút" Tag="12"/>
+                            <ComboBoxItem Content="25 phút" Tag="25"/>
+                        </ComboBox>
+                        <TextBlock Grid.Column="4" Text="Nhà cung cấp" VerticalAlignment="Center" Margin="5"/>
+                        <ComboBox x:Name="AiProviderInput" Grid.Column="5" SelectedIndex="0" SelectionChanged="AiProviderChanged" Margin="3">
+                            <ComboBoxItem Content="OpenAI" Tag="OpenAI"/>
+                            <ComboBoxItem Content="Gemini" Tag="Gemini"/>
+                        </ComboBox>
+                    </Grid>
+                    <Grid Grid.Row="2" Margin="2,0,2,9">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="220"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="250"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Model" VerticalAlignment="Center" Margin="5"/>
+                        <TextBox x:Name="AiModelInput" Grid.Column="1" Text="gpt-5.5" Margin="3"/>
+                        <TextBlock Grid.Column="2" Text="API key (chỉ giữ trong phiên)" VerticalAlignment="Center" Margin="5"/>
+                        <PasswordBox x:Name="AiKeyInput" Grid.Column="3" Margin="3"/>
+                        <WrapPanel Grid.Column="4" HorizontalAlignment="Right">
+                            <Button x:Name="AiRunButton" Content="Tạo kịch bản bằng AI" Click="AiRunClick"/>
+                            <Button x:Name="AiCancelButton" Content="Hủy" Click="AiCancelClick" IsEnabled="False"/>
+                            <Button Content="Lưu 4 file vào dự án" Click="AiSaveClick"/>
+                            <Button Content="Đưa voice vào dự án" Click="AiImportVoiceClick"/>
+                        </WrapPanel>
+                    </Grid>
+                    <TabControl Grid.Row="3" Margin="4">
+                        <TabItem Header="01 · Lời thuyết minh">
+                            <TextBox x:Name="AiScriptEditor" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontSize="14"/>
+                        </TabItem>
+                        <TabItem Header="02 · Voice tách đoạn">
+                            <TextBox x:Name="AiVoiceEditor" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontSize="14"/>
+                        </TabItem>
+                        <TabItem Header="03 · Kế hoạch bản đồ">
+                            <TextBox x:Name="AiMapEditor" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="12"/>
+                        </TabItem>
+                        <TabItem Header="05 · Gói YouTube">
+                            <TextBox x:Name="AiPackageEditor" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="12"/>
+                        </TabItem>
+                    </TabControl>
+                    <StackPanel Grid.Row="4" Margin="4,8">
+                        <TextBlock x:Name="AiStatus" TextWrapping="Wrap" Text="Chọn một dự án ở tab Dự án, nhập API key, rồi bấm Tạo kịch bản bằng AI."/>
+                        <TextBlock Margin="0,5,0,0" Foreground="#A84B22" TextWrapping="Wrap" Text="Ghi chú: AI hiện không có tính năng tra cứu hoặc xác minh nguồn tự động. Số liệu, nguồn, năm và tọa độ cần người dùng kiểm chứng. API key không được lưu vào settings.json."/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
         </TabControl>
     </DockPanel>
 </Window>

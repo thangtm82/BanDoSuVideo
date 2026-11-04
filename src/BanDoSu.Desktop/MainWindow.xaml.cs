@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private string? _previewUrl;
     private readonly ObservableCollection<EnvironmentRow> _environmentRows = new();
     private CancellationTokenSource? _environmentCts;
+    private CancellationTokenSource? _aiCts;
     private sealed record EnvironmentRow(DependencyKind Kind, string Name, string Status, string Details);
 
 
@@ -165,6 +166,7 @@ public partial class MainWindow : Window
         _scriptPath = projectScript;
         ScriptEditor.Text = File.Exists(projectScript) ? File.ReadAllText(projectScript, Encoding.UTF8) : "";
         VoiceFolder.Text = _projects.FileInProject(_selected.Name, "input", "voice");
+        LoadAiFiles();
         try { LoadShots(); } catch (Exception ex) { Log("Lỗi tải cảnh: " + ex.Message); }
         StopPreviewHost();
     }
@@ -664,6 +666,178 @@ public partial class MainWindow : Window
     }
 
 
+    private void AiProviderChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (AiModelInput is null || AiProviderInput is null) return;
+        var provider = (AiProviderInput.SelectedItem as ComboBoxItem)?.Tag as string;
+        AiModelInput.Text = provider == "Gemini" ? "gemini-2.5-flash" : "gpt-5.5";
+    }
+
+    private string AiPath(string slug, string prefix, string ext) =>
+        _projects.FileInProject(slug, prefix + "-" + slug + "." + ext);
+
+    private void LoadAiFiles()
+    {
+        if (_selected is null) return;
+        var slug = _selected.Name;
+        AiScriptEditor.Text = LoadIfExists(AiPath(slug, "01-SCRIPT", "txt"));
+        AiVoiceEditor.Text = LoadIfExists(AiPath(slug, "02-VOICE", "txt"));
+        AiMapEditor.Text = LoadIfExists(AiPath(slug, "03-BAN-DO", "md"));
+        AiPackageEditor.Text = LoadIfExists(AiPath(slug, "05-PACKAGE", "md"));
+        AiStatus.Text = "Đang mở dự án: " + _selected.Title;
+    }
+
+    private static string LoadIfExists(string path) =>
+        File.Exists(path) ? File.ReadAllText(path, Encoding.UTF8) : string.Empty;
+
+    private async void AiRunClick(object sender, RoutedEventArgs e)
+    {
+        if (_selected is null)
+        {
+            Alert("Hãy tạo/chọn dự án ở tab Dự án trước khi viết kịch bản AI.");
+            MainTabs.SelectedIndex = 0;
+            return;
+        }
+        if (_operation != null || _environmentCts != null || _aiCts != null)
+        {
+            Alert("Đang có tác vụ khác chạy, hãy hoàn thành hoặc hủy trước.");
+            return;
+        }
+        var provider = (AiProviderInput.SelectedItem as ComboBoxItem)?.Tag as string == "Gemini"
+            ? AiScriptProvider.Gemini : AiScriptProvider.OpenAI;
+        var duration = int.TryParse((AiDurationInput.SelectedItem as ComboBoxItem)?.Tag?.ToString(),
+            out var minutes) ? minutes : 12;
+        var request = new AiScriptRequest(provider, AiModelInput.Text.Trim(),
+            AiKeyInput.Password, AiTopicInput.Text.Trim(), duration);
+        var slug = _selected.Name;
+        var skill = AiScriptStudio.ResolveSkillRoot(AppContext.BaseDirectory, _settings.StudioRoot);
+        using var cts = new CancellationTokenSource();
+        _aiCts = cts;
+        AiRunButton.IsEnabled = false;
+        AiCancelButton.IsEnabled = true;
+        try
+        {
+            var client = new AiScriptStudio(skill);
+            if (!client.HasSkill)
+                throw new FileNotFoundException("Không tìm thấy skill kich-ban-bandosu hoặc references tại " + skill);
+            var progress = new Progress<string>(message =>
+            {
+                AiStatus.Text = message;
+                Log("AI: " + message);
+            });
+            var bundle = await client.GenerateAsync(request, slug, progress, cts.Token);
+            if (_selected?.Name != slug)
+            {
+                AiStatus.Text = "Dự án đã thay đổi trong khi AI tạo nội dung. Kết quả không được ghi đè dự án khác.";
+                return;
+            }
+            AiScriptEditor.Text = bundle.Script;
+            AiVoiceEditor.Text = bundle.Voice;
+            AiMapEditor.Text = bundle.MapPlan;
+            AiPackageEditor.Text = bundle.Package;
+            AiStatus.Text = $"Đã tạo bản nháp cho {slug}: {bundle.WordCount} chữ, {bundle.VoiceSegments} đoạn voice. Kiểm tra nội dung và nguồn, sau đó lưu 4 file.";
+            Log("AI đã tạo bản nháp. Chưa lưu vào ổ đĩa và chưa tạo MP3.");
+        }
+        catch (OperationCanceledException)
+        {
+            AiStatus.Text = "Đã hủy tạo kịch bản. Nội dung cũ chưa bị thay đổi.";
+        }
+        catch (Exception ex)
+        {
+            AiStatus.Text = "Tạo kịch bản thất bại: " + ex.Message;
+            Log("Lỗi AI: " + ex.Message);
+            Alert("Không thể tạo kịch bản AI: " + ex.Message);
+        }
+        finally
+        {
+            _aiCts = null;
+            AiRunButton.IsEnabled = true;
+            AiCancelButton.IsEnabled = false;
+        }
+    }
+
+    private void AiCancelClick(object sender, RoutedEventArgs e) => _aiCts?.Cancel();
+
+    private void AiSaveClick(object sender, RoutedEventArgs e)
+    {
+        if (_aiCts != null)
+        {
+            Alert("AI đang viết; hãy hoàn thành hoặc hủy trước khi lưu.");
+            return;
+        }
+        if (_selected is null)
+        {
+            Alert("Hãy chọn dự án trước.");
+            return;
+        }
+        try
+        {
+            AiScriptStudio.ValidateBundle(AiScriptEditor.Text, AiVoiceEditor.Text,
+                AiMapEditor.Text, AiPackageEditor.Text);
+            var slug = _selected.Name;
+            var files = new[]
+            {
+                (AiPath(slug, "01-SCRIPT", "txt"), AiScriptEditor.Text),
+                (AiPath(slug, "02-VOICE", "txt"), AiVoiceEditor.Text),
+                (AiPath(slug, "03-BAN-DO", "md"), AiMapEditor.Text),
+                (AiPath(slug, "05-PACKAGE", "md"), AiPackageEditor.Text)
+            };
+            // Preserve previous drafts when the user generates/edits again.
+            var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+            foreach (var (file, content) in files)
+            {
+                if (File.Exists(file)) File.Copy(file, file + ".backup-" + stamp, true);
+                ProjectFiles.SaveText(file, content);
+            }
+            AiStatus.Text = "Đã lưu bốn file AI vào: " + _selected.Directory;
+            Log(AiStatus.Text);
+        }
+        catch (Exception ex)
+        {
+            Alert("Không lưu được các file AI: " + ex.Message);
+        }
+    }
+
+    private void AiImportVoiceClick(object sender, RoutedEventArgs e)
+    {
+        if (_selected is null)
+        {
+            Alert("Hãy chọn dự án trước.");
+            return;
+        }
+        if (_aiCts != null)
+        {
+            Alert("Hãy chờ AI hoàn tất trước khi nhập voice.");
+            return;
+        }
+        try
+        {
+            if (string.IsNullOrWhiteSpace(AiVoiceEditor.Text))
+                throw new InvalidDataException("Chưa có file 02-VOICE.");
+            if (!AiScriptStudio.EquivalentNarration(AiScriptEditor.Text, AiVoiceEditor.Text))
+                throw new InvalidDataException("Lời đọc ở 01 và 02 khác nhau; hãy kiểm tra trước khi nhập.");
+            var path = _projects.FileInProject(_selected.Name, "input", "02-VOICE.txt");
+            if (File.Exists(path) &&
+                MessageBox.Show(this,
+                    "Đã có input/02-VOICE.txt. Sao lưu và thay bằng lời đọc AI hiện tại? " +
+                    "Các tệp MP3 cũ có thể không còn phù hợp với đoạn voice mới.",
+                    "Thay lời đọc dự án", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                return;
+            if (File.Exists(path))
+                File.Copy(path, path + ".backup-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss"), true);
+            ProjectFiles.SaveText(path, AiVoiceEditor.Text);
+            ScriptEditor.Text = AiVoiceEditor.Text;
+            _scriptPath = path;
+            MainTabs.SelectedIndex = 1;
+            AiStatus.Text = "Đã chuyển lời đọc vào input/02-VOICE.txt. Hãy tạo 1.mp3, 2.mp3... theo số đoạn trước khi tạo timeline.";
+            Log(AiStatus.Text);
+        }
+        catch (Exception ex)
+        {
+            Alert("Không thể nhập voice: " + ex.Message);
+        }
+    }
+
     private void OpenEnvironmentClick(object sender, RoutedEventArgs e)
     {
         MainTabs.SelectedIndex = 6; // appended after the six existing tabs
@@ -836,6 +1010,7 @@ public partial class MainWindow : Window
     {
         _operation?.Cancel();
         _environmentCts?.Cancel();
+        _aiCts?.Cancel();
         StopPreviewHost();
         VideoPlayer.Stop();
     }
