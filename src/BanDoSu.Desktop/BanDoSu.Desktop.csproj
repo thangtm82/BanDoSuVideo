@@ -10,7 +10,7 @@
     <ProjectReference Include="../BanDoSu.Core/BanDoSu.Core.csproj" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
     <Content Include="../../integration/preview-host.mjs" Link="integration/preview-host.mjs" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../skills/kich-ban-bandosu/**">
+    <Content Include="../../skills/kich-ban-bandosu/**/*">
       <Link>skills/kich-ban-bandosu/%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
