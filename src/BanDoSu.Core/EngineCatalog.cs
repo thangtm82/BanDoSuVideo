@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -119,6 +120,75 @@ public sealed class EngineCatalog
         }
         // Existing projects without binding retain the original default engine when it supports their pack.
         return matches.FirstOrDefault(x => x.EngineId == "default") ?? matches[0];
+    }
+
+    /// <summary>
+    /// Import a user-supplied ZIP (such as h2-terrain-studio.zip). The archive
+    /// may contain a single engine at its root, kit/, or skills/*/kit/.
+    /// Extracts into temporary storage, rejects traversal/links, and never
+    /// replaces an installed engine.
+    /// </summary>
+    public async Task<PackOption[]> ImportArchiveAsync(string archivePath, string installationId,
+        CancellationToken ct = default)
+    {
+        if (!File.Exists(archivePath)) throw new FileNotFoundException("Không tìm thấy ZIP engine.", archivePath);
+        Directory.CreateDirectory(InstallationsRoot);
+        var extraction = Path.Combine(InstallationsRoot, ".zip-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(extraction);
+        try
+        {
+            using var zip = ZipFile.OpenRead(archivePath);
+            if (zip.Entries.Count > 20000)
+                throw new InvalidDataException("ZIP chứa quá nhiều tệp.");
+            const long maxBytes = 4L * 1024 * 1024 * 1024;
+            long cumulative = 0;
+            var normalizedRoot = Path.GetFullPath(extraction).TrimEnd(Path.DirectorySeparatorChar) +
+                Path.DirectorySeparatorChar;
+            foreach (var entry in zip.Entries)
+            {
+                ct.ThrowIfCancellationRequested();
+                var raw = entry.FullName.Replace('\\', '/');
+                if (raw.StartsWith('/') || raw.Split('/').Any(part => part == "..") ||
+                    raw.IndexOf(':') >= 0)
+                    throw new InvalidDataException("ZIP chứa đường dẫn không an toàn.");
+                var kind = (entry.ExternalAttributes >> 16) & 0xF000;
+                if (kind == 0xA000)
+                    throw new InvalidDataException("ZIP có symbolic link. Không nhập.");
+                cumulative += entry.Length;
+                if (cumulative > maxBytes)
+                    throw new InvalidDataException("ZIP quá lớn sau khi giải nén.");
+                var full = Path.GetFullPath(Path.Combine(extraction,
+                    raw.Replace('/', Path.DirectorySeparatorChar)));
+                if (!full.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("ZIP vượt ngoài thư mục tạm.");
+                if (raw.EndsWith('/'))
+                {
+                    Directory.CreateDirectory(full);
+                    continue;
+                }
+                Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+                await using var output = new FileStream(full, FileMode.CreateNew, FileAccess.Write);
+                await using var input = entry.Open();
+                await input.CopyToAsync(output, ct);
+            }
+            var candidates = new List<string>();
+            if (PortableStudioPaths.IsValidEngine(extraction)) candidates.Add(extraction);
+            foreach (var dir in Directory.EnumerateDirectories(extraction, "*", SearchOption.AllDirectories))
+            {
+                ct.ThrowIfCancellationRequested();
+                if (Path.GetFileName(dir).Equals("kit", StringComparison.OrdinalIgnoreCase) &&
+                    PortableStudioPaths.IsValidEngine(dir))
+                    candidates.Add(dir);
+            }
+            if (candidates.Count != 1)
+                throw new InvalidDataException("ZIP phải chứa đúng một engine H2 hợp lệ (thư mục kit). " +
+                    "Đã tìm thấy: " + candidates.Count);
+            return await ImportAsync(candidates[0], installationId, ct);
+        }
+        finally
+        {
+            if (Directory.Exists(extraction)) Directory.Delete(extraction, recursive: true);
+        }
     }
 
     public async Task<PackOption[]> ImportAsync(string sourceRoot, string installationId,
