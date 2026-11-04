@@ -54,8 +54,7 @@ public sealed class EnvironmentManager
 
     private string Engine => Path.GetFullPath(_settings.StudioRoot);
     private string PrivatePython => Path.Combine(Engine, ".venv", "Scripts", "python.exe");
-    private string NpmExecutable => SiblingTool(_settings.NodeExecutable, "npm.cmd");
-    private string NpxExecutable => SiblingTool(_settings.NodeExecutable, "npx.cmd");
+    private NodePackageTools NodeTools => new(_settings.NodeExecutable, Engine);
     private string FfprobeExecutable => SiblingTool(_settings.FfmpegExecutable, "ffprobe.exe");
 
     private static string SiblingTool(string configured, string sibling)
@@ -116,8 +115,16 @@ public sealed class EnvironmentManager
                 result = await ProbeAsync(_settings.NodeExecutable, ["--version"], cwd, cancellationToken);
                 return FromProcess(kind, name, result);
             case DependencyKind.Npm:
-                result = await ProbeAsync(NpmExecutable, ["--version"], cwd, cancellationToken);
-                return FromProcess(kind, name, result);
+                try
+                {
+                    var cli = NodeTools.ResolveNpmCli();
+                    result = await ProbeAsync(NodeTools.FindNodeExecutable()!, [cli, "--version"], cwd, cancellationToken);
+                    return FromProcess(kind, name, result);
+                }
+                catch (FileNotFoundException ex)
+                {
+                    return new(kind, name, false, ex.Message);
+                }
             case DependencyKind.Python:
                 result = await ProbeAsync(_settings.PythonExecutable, ["--version"], cwd, cancellationToken);
                 return FromProcess(kind, name, result);
@@ -130,8 +137,17 @@ public sealed class EnvironmentManager
             case DependencyKind.NpmPackages:
                 if (!File.Exists(Path.Combine(Engine, "package.json")))
                     return new(kind, name, false, "Không có package.json trong Engine.", false);
-                result = await ProbeAsync(NpmExecutable, ["ls", "--depth=0", "--omit=dev"], Engine, cancellationToken);
-                return FromProcess(kind, name, result);
+                try
+                {
+                    var cli = NodeTools.ResolveNpmCli();
+                    result = await ProbeAsync(NodeTools.FindNodeExecutable()!,
+                        [cli, "ls", "--depth=0", "--omit=dev"], Engine, cancellationToken);
+                    return FromProcess(kind, name, result);
+                }
+                catch (FileNotFoundException ex)
+                {
+                    return new(kind, name, false, ex.Message);
+                }
             case DependencyKind.PlaywrightChromium:
                 // The same Playwright package used by the engine resolves its browser path.
                 // No downloads or package updates occur during this detection.
@@ -230,12 +246,18 @@ public sealed class EnvironmentManager
                     throw new FileNotFoundException("Không có package.json của H2 Studio.");
                 var verb = File.Exists(Path.Combine(Engine, "package-lock.json")) ? "ci" : "install";
                 log?.Invoke("Chạy npm " + verb + " tại " + Engine);
-                return await _runner.RunAsync(NpmExecutable, [verb], Engine, log, cancellationToken);
+                var cli = NodeTools.ResolveNpmCli();
+                return await _runner.RunAsync(NodeTools.FindNodeExecutable()!,
+                    [cli, verb], Engine, log, cancellationToken);
             }
             case DependencyKind.PlaywrightChromium:
-                log?.Invoke("Cài Chromium tương thích với Playwright trong engine.");
-                return await _runner.RunAsync(NpxExecutable,
-                    ["--no-install", "playwright", "install", "chromium"], Engine, log, cancellationToken);
+                // Use the Playwright version installed in the engine; never call
+                // npx.cmd or install an arbitrary latest Playwright package.
+                var playwrightCli = NodeTools.ResolvePlaywrightCli();
+                log?.Invoke("Cài Chromium theo Playwright của engine: " + playwrightCli);
+                return await _runner.RunAsync(NodeTools.FindNodeExecutable() ??
+                    throw new FileNotFoundException("Không tìm thấy node.exe trong PATH."),
+                    [playwrightCli, "install", "chromium"], Engine, log, cancellationToken);
             case DependencyKind.PythonPackages:
             {
                 if (!File.Exists(PrivatePython))
