@@ -26,6 +26,18 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        MapBrowser.NavigationCompleted += async (_, _) =>
+        {
+            try
+            {
+                if (MapBrowser.CoreWebView2 == null) return;
+                await MapBrowser.ExecuteScriptAsync(
+                    "(async () => { for (let i = 0; i < 150 && !window.__ready && !window.__bootError; i++) await new Promise(r => setTimeout(r, 100)); if (window.__ready) await window.renderFrame(0); })()");
+                var bootError = await MapBrowser.ExecuteScriptAsync("window.__bootError || null");
+                if (bootError != "null") Log("Map boot error: " + bootError);
+            }
+            catch (Exception ex) { Log("Live map error: " + ex.Message); }
+        };
         _projects = new ProjectFiles(_settings);
         _commands = new StudioCommands(_settings);
         FillSettings();
