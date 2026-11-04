@@ -16,6 +16,7 @@ namespace BanDoSu.Desktop;
 public partial class MainWindow : Window
 {
     private StudioSettings _settings = StudioSettings.Load();
+    private EngineCatalog _engineCatalog;
     private ProjectFiles _projects;
     private StudioCommands _commands;
     private ProjectSummary? _selected;
@@ -50,7 +51,9 @@ public partial class MainWindow : Window
         };
         _projects = new ProjectFiles(_settings);
         _commands = new StudioCommands(_settings);
+        _engineCatalog = new EngineCatalog(_settings);
         FillSettings();
+        RefreshPacks();
         RefreshTtsVoiceChoices();
         AiCustomBaseUrl.Text = _settings.CustomAiBaseUrl;
         AiCustomEndpointInput.SelectedIndex = _settings.CustomAiEndpoint == AiCustomEndpoint.Responses ? 1 : 0;
@@ -79,8 +82,8 @@ public partial class MainWindow : Window
 
     private bool HasStudio()
     {
-        if (PortableStudioPaths.IsValidEngine(_settings.StudioRoot)) return true;
-        Alert("Hãy chọn thư mục H2 Studio đã cài đặt trong Cài đặt (thư mục chứa render.mjs).");
+        if (_engineCatalog.Discover().Count > 0) return true;
+        Alert("Chưa có engine H2 hỗ trợ Pack. Hãy nhập ZIP H2/Terrain ở tab Dự án.");
         MainTabs.SelectedIndex = 6; // Cài đặt
         return false;
     }
@@ -141,6 +144,150 @@ public partial class MainWindow : Window
         }
     }
 
+
+    private void RefreshPacks()
+    {
+        if (NewPackCombo is null) return;
+        var previous = NewPackCombo.SelectedItem as PackOption;
+        var profiles = _engineCatalog.Discover();
+        NewPackCombo.ItemsSource = profiles;
+        NewPackCombo.SelectedItem = profiles.FirstOrDefault(x =>
+            x.Pack == previous?.Pack && x.EngineId == previous?.EngineId) ??
+            profiles.FirstOrDefault(x => x.Pack == "bando") ?? profiles.FirstOrDefault();
+        EnvironmentEngineCombo.ItemsSource = profiles;
+        EnvironmentEngineCombo.SelectedItem = profiles.FirstOrDefault(x => x.EngineId == "default") ??
+            profiles.FirstOrDefault();
+        PackStatus.Text = profiles.Count == 0
+            ? "Chưa có pack. Nhập ZIP có kit/ hoặc chọn thư mục engine."
+            : "Đã phát hiện " + profiles.Count + " lựa chọn: " +
+              string.Join(", ", profiles.Select(x => x.DisplayName));
+    }
+
+    private void RefreshPacksClick(object sender, RoutedEventArgs e) => RefreshPacks();
+
+    private void NewPackChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (NewPackCombo.SelectedItem is PackOption option)
+        {
+            NewLangInput.Text = option.Language;
+            NewStyleInput.Text = option.Style;
+        }
+    }
+
+    private async void ImportPackZipClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog { Filter = "H2 Studio ZIP (*.zip)|*.zip",
+            Title = "Chọn ZIP H2 Studio (h2-terrain-studio.zip hoặc pack mới)" };
+        if (dialog.ShowDialog(this) != true) return;
+        await ImportPackAsync(dialog.FileName, isZip: true);
+    }
+
+    private async void ImportPackFolderClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog {
+            Title = "Chọn thư mục kit/ có render.mjs, player.html, tools/ và packs/" };
+        if (dialog.ShowDialog(this) != true) return;
+        await ImportPackAsync(dialog.FolderName, isZip: false);
+    }
+
+    private async Task ImportPackAsync(string source, bool isZip)
+    {
+        if (_operation != null || _environmentCts != null || _aiCts != null || _ttsCts != null)
+        {
+            Alert("Đang có tác vụ khác chạy."); return;
+        }
+        var proposed = Path.GetFileNameWithoutExtension(source)
+            .ToLowerInvariant().Replace(' ', '-');
+        proposed = Regex.Replace(proposed, @"[^a-z0-9_-]", "-");
+        if (!Regex.IsMatch(proposed, @"^[a-z0-9][a-z0-9_-]{0,80}$"))
+            proposed = "engine-" + DateTime.UtcNow.ToString("yyyyMMdd");
+        // Versioned installation: never replace an existing renderer or any project files.
+        var name = proposed + "-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+        if (MessageBox.Show(this,
+                "Nhập engine '" + name + "' từ:\n" + source +
+                "\n\nEngine mới sẽ được lưu song song tại studio/engines/" + name +
+                ". Không ghi đè H2 cũ. Các thư viện npm/Python của mỗi engine cần cài riêng.",
+                "Xác nhận nhập H2 Engine", MessageBoxButton.YesNo,
+                MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        using var cts = new CancellationTokenSource();
+        _operation = cts;
+        try
+        {
+            PackStatus.Text = "Đang nhập engine '" + name + "'...";
+            var packs = isZip
+                ? await _engineCatalog.ImportArchiveAsync(source, name, cts.Token)
+                : await _engineCatalog.ImportAsync(source, name, cts.Token);
+            RefreshPacks();
+            NewPackCombo.SelectedItem = packs[0];
+            PackStatus.Text = "Đã cài " + string.Join(", ", packs.Select(p => p.Pack)) +
+                ". Mở Quản lý môi trường, chọn engine mới và cài dependency.";
+            Log(PackStatus.Text);
+        }
+        catch (OperationCanceledException) { PackStatus.Text = "Đã hủy nhập engine."; }
+        catch (Exception ex)
+        {
+            PackStatus.Text = "Lỗi nhập engine: " + ex.Message;
+            Log(PackStatus.Text); Alert(PackStatus.Text);
+        }
+        finally { _operation = null; }
+    }
+
+    private void UpdateSelectedEngineInfo()
+    {
+        if (_selected is null) return;
+        try
+        {
+            var current = _engineCatalog.ResolveForProject(_selected.Directory);
+            SelectedEngineInfo.Text = "Dự án " + _selected.Name + " / Pack " +
+                current.Pack + " / Engine " + current.EngineId;
+            var match = _engineCatalog.Discover().FirstOrDefault(p =>
+                p.Pack == current.Pack && p.EngineId == current.EngineId);
+            if (match != null) NewPackCombo.SelectedItem = match;
+        }
+        catch (Exception ex)
+        {
+            SelectedEngineInfo.Text = "Engine của dự án chưa sẵn sàng: " + ex.Message;
+        }
+    }
+
+    private void BindProjectEngineClick(object sender, RoutedEventArgs e)
+    {
+        if (_selected is null || NewPackCombo.SelectedItem is not PackOption profile)
+        {
+            Alert("Hãy chọn dự án và Pack/Engine ở danh sách."); return;
+        }
+        var projectPack = EngineCatalog.GetProjectPack(_selected.Directory);
+        if (!projectPack.Equals(profile.Pack, StringComparison.OrdinalIgnoreCase))
+        {
+            Alert("Không thể gắn engine khác loại. Dự án dùng pack '" +
+                projectPack + "', nhưng engine được chọn là '" + profile.Pack + "'."); return;
+        }
+        if (MessageBox.Show(this, "Đổi engine cho dự án sang '" + profile.EngineId +
+                "'? Hãy kiểm tra lại tính tương thích các cảnh với phiên bản renderer mới.",
+                "Gắn phiên bản Engine", MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        EngineCatalog.WriteBinding(_selected.Directory, profile);
+        UpdateSelectedEngineInfo();
+        StopPreviewHost();
+        Log("Đã gắn dự án với engine " + profile.EngineId);
+    }
+
+    private void EnvSelectProjectEngineClick(object sender, RoutedEventArgs e)
+    {
+        if (_selected is null) { Alert("Hãy chọn dự án."); return; }
+        try
+        {
+            var profile = _engineCatalog.ResolveForProject(_selected.Directory);
+            EnvironmentEngineCombo.SelectedItem = _engineCatalog.Discover()
+                .FirstOrDefault(p => p.EngineId == profile.EngineId && p.Pack == profile.Pack);
+            MainTabs.SelectedIndex = 7;
+        }
+        catch (Exception ex) { Alert(ex.Message); }
+    }
+
+    private string EnvironmentEngineRoot =>
+        (EnvironmentEngineCombo.SelectedItem as PackOption)?.EngineRoot ?? _settings.StudioRoot;
+
     private void RefreshProjectsClick(object sender, RoutedEventArgs e) => RefreshProjects();
 
     private async void CreateProjectClick(object sender, RoutedEventArgs e)
@@ -151,8 +298,22 @@ public partial class MainWindow : Window
         { Alert("Tên thư mục dự án chỉ được chứa chữ Latin không dấu, chữ số, dấu gạch nối và gạch dưới."); return; }
         if (_projects.Exists(slug))
         { Alert("Dự án đã tồn tại. Hãy chọn tên khác."); return; }
+        if (NewPackCombo.SelectedItem is not PackOption basePack)
+        {
+            Alert("Chọn Pack + phiên bản engine trước khi tạo dự án."); return;
+        }
+        if (!Regex.IsMatch(NewLangInput.Text.Trim(), @"^[a-zA-Z]{2,5}(-[a-zA-Z]{2,5})?$"))
+        {
+            Alert("Mã ngôn ngữ không hợp lệ."); return;
+        }
+        var style = NewStyleInput.Text.Trim();
+        if (!Regex.IsMatch(style, @"^[a-zA-Z0-9_-]{1,32}$"))
+        {
+            Alert("Style phải là chữ, số, _ hoặc -."); return;
+        }
+        var profile = basePack with { Language = NewLangInput.Text.Trim(), Style = style };
         await ExecuteAsync((log, ct) => _commands.CreateProjectAsync(slug, NewTitle.Text.Trim(),
-            NewCaptions.IsChecked == true, log, ct), "Tạo dự án", () =>
+            NewCaptions.IsChecked == true, profile, log, ct), "Tạo dự án", () =>
         {
             RefreshProjects();
             ProjectsList.SelectedItem = _projects.List().FirstOrDefault(p => p.Name == slug);
@@ -166,7 +327,12 @@ public partial class MainWindow : Window
         ShotsGrid.ItemsSource = null;
         ArgsEditor.Text = "";
         ProjectHeader.Text = _selected?.Title ?? "Chưa chọn dự án";
-        if (_selected == null) return;
+        if (_selected == null)
+        {
+            SelectedEngineInfo.Text = "Engine dự án: chưa chọn";
+            return;
+        }
+        UpdateSelectedEngineInfo();
         var projectScript = _projects.FileInProject(_selected.Name, "input", "02-VOICE.txt");
         _scriptPath = projectScript;
         ScriptEditor.Text = File.Exists(projectScript) ? File.ReadAllText(projectScript, Encoding.UTF8) : "";
@@ -728,6 +894,8 @@ public partial class MainWindow : Window
             _settings.Save();
             _projects = new ProjectFiles(_settings);
             _commands = new StudioCommands(_settings);
+            _engineCatalog = new EngineCatalog(_settings);
+            RefreshPacks();
             _selected = null;
             FillSettings();
             RefreshProjects();
@@ -785,7 +953,9 @@ public partial class MainWindow : Window
         _settings.Save();
         _projects = new ProjectFiles(_settings);
         _commands = new StudioCommands(_settings);
+        _engineCatalog = new EngineCatalog(_settings);
         _selected = null;
+        RefreshPacks();
         RefreshProjects();
         _environmentRows.Clear();
         EnvironmentProgressBar.Value = 0;
