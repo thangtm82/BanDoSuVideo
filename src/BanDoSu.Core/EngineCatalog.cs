@@ -31,10 +31,11 @@ public sealed class EngineCatalog
     public StudioSettings Settings { get; }
     public string InstallationsRoot { get; }
 
-    public EngineCatalog(StudioSettings settings)
+    public EngineCatalog(StudioSettings settings, string? installationsRoot = null)
     {
         Settings = settings;
-        InstallationsRoot = Path.Combine(new PortableStudioPaths().Engine, "engines");
+        InstallationsRoot = Path.GetFullPath(installationsRoot ??
+            Path.Combine(new PortableStudioPaths().Engine, "engines"));
     }
 
     public IReadOnlyList<PackOption> Discover()
@@ -74,6 +75,16 @@ public sealed class EngineCatalog
         using var document = JsonDocument.Parse(File.ReadAllText(cfg));
         return document.RootElement.TryGetProperty("pack", out var pack) &&
             pack.ValueKind == JsonValueKind.String ? pack.GetString() ?? "" : "";
+    }
+
+    public static string GetProjectLanguage(string projectDirectory, string fallback = "vi")
+    {
+        var cfg = Path.Combine(projectDirectory, "config.json");
+        if (!File.Exists(cfg)) return fallback;
+        using var document = JsonDocument.Parse(File.ReadAllText(cfg));
+        return document.RootElement.TryGetProperty("lang", out var lang) &&
+            lang.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(lang.GetString()) ? lang.GetString()! : fallback;
     }
 
     public static string BindingPath(string projectDirectory) =>
