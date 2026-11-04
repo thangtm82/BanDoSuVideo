@@ -688,6 +688,25 @@ try
           repairedTerrain.Root["shots"]?[1]?["args"]?["pins"]?[0]?["u"]?.ToString() == "capital",
           "Terrain v4 AI repair preserves narration and pins while correcting scene camera");
 
+    // V5 cinematic rendering is enabled only when the imported engine supports it.
+    var cinematicWorldJs = Path.Combine(testTerrainEngine, "packs", "terrain", "world.js");
+    Directory.CreateDirectory(Path.GetDirectoryName(cinematicWorldJs)!);
+    ProjectFiles.SaveText(cinematicWorldJs,
+        "// V5 optical ruggedness: renderer capability signature");
+    var v5Candidate = new AiTerrainSceneBuilder(terrainAssistant, CompleteTerrain)
+        .GenerateAsync(terrainRequest, aiTerrainProject, testTerrainEngine)
+        .GetAwaiter().GetResult();
+    Check(v5Candidate.Root["worlds"]?["hills"]?["graphics"]?.ToString() == "cinematic" &&
+          v5Candidate.Root["worlds"]?["hills"]?["terrainDetail"]?.ToString() == "0.85" &&
+          v5Candidate.Root["worlds"]?["hills"]?["exposure"]?.ToString() == "1.22",
+          "Terrain v5 enables cinematic graphics only with patched imported engine");
+    File.Delete(cinematicWorldJs);
+    var legacyCandidate = new AiTerrainSceneBuilder(terrainAssistant, CompleteTerrain)
+        .GenerateAsync(terrainRequest, aiTerrainProject, testTerrainEngine)
+        .GetAwaiter().GetResult();
+    Check(legacyCandidate.Root["worlds"]?["hills"]?["graphics"] is null,
+        "Terrain v5 keeps legacy engine worlds unmodified");
+
     var concurrentEditBlocked = false;
     try { AiTerrainSceneBuilder.SaveWithBackup(aiTerrainProject, candidateTerrain, terrainDraft); }
     catch (IOException) { concurrentEditBlocked = true; }
