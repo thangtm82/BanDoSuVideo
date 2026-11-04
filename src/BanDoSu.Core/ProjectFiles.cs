@@ -135,6 +135,46 @@ public sealed class ProjectFiles
         return destination;
     }
 
+    /// <summary>
+    /// Optional, non-destructive migration of a legacy engine project.
+    /// The original project is kept as a backup, with Workspace taking precedence.
+    /// </summary>
+    public string CopyLegacyProjectToWorkspace(string name)
+    {
+        ValidateName(name);
+        ValidateRoots(Settings);
+        var source = InRoot(LegacyProjectsRoot, name);
+        var destination = InRoot(ProjectsRoot, name);
+        if (!File.Exists(Path.Combine(source, "config.json")))
+            throw new FileNotFoundException("Không tìm thấy dự án cũ trong engine.");
+        if (Directory.Exists(destination))
+            throw new IOException("Workspace đã có dự án trùng tên.");
+        Directory.CreateDirectory(ProjectsRoot);
+        var staging = destination + ".migrating-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            CopyDirectory(source, staging);
+            var originals = Directory.GetFiles(source, "*", SearchOption.AllDirectories);
+            var copies = Directory.GetFiles(staging, "*", SearchOption.AllDirectories);
+            if (originals.Length != copies.Length)
+                throw new IOException("Số lượng tệp sao chép không khớp.");
+            foreach (var original in originals)
+            {
+                var relative = Path.GetRelativePath(source, original);
+                var copy = Path.Combine(staging, relative);
+                if (!File.Exists(copy) || new FileInfo(original).Length != new FileInfo(copy).Length)
+                    throw new IOException("Không thể xác minh bản sao: " + relative);
+            }
+            Directory.Move(staging, destination);
+            return destination;
+        }
+        catch
+        {
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+            throw;
+        }
+    }
+
     private static void CopyDirectory(string source, string target)
     {
         Directory.CreateDirectory(target);
