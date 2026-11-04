@@ -71,10 +71,11 @@ public sealed class EngineCatalog
     public static string GetProjectPack(string projectDirectory)
     {
         var cfg = Path.Combine(projectDirectory, "config.json");
-        if (!File.Exists(cfg)) return "";
+        if (!File.Exists(cfg)) return "bando";
         using var document = JsonDocument.Parse(File.ReadAllText(cfg));
-        return document.RootElement.TryGetProperty("pack", out var pack) &&
-            pack.ValueKind == JsonValueKind.String ? pack.GetString() ?? "" : "";
+        var pack = document.RootElement.TryGetProperty("pack", out var element) &&
+            element.ValueKind == JsonValueKind.String ? element.GetString() : null;
+        return string.IsNullOrWhiteSpace(pack) ? "bando" : pack;
     }
 
     public static string GetProjectLanguage(string projectDirectory, string fallback = "vi")
