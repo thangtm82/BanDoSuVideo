@@ -1114,7 +1114,7 @@ public partial class MainWindow : Window
         AiCancelButton.IsEnabled = true;
         try
         {
-            var skill = AiScriptStudio.ResolveSkillRoot(AppContext.BaseDirectory, _settings.StudioRoot);
+            var skill = GetSelectedSkillRoot();
             var studio = new AiScriptStudio(skill);
             AiStatus.Text = "Đang thử kết nối đến API Custom...";
             var result = await studio.TestConnectionAsync(request, cts.Token);
@@ -1143,15 +1143,29 @@ public partial class MainWindow : Window
     private string AiPath(string slug, string prefix, string ext) =>
         _projects.FileInProject(slug, prefix + "-" + slug + "." + ext);
 
+    private string SelectedPack =>
+        _selected is null ? "bando" : EngineCatalog.GetProjectPack(_selected.Directory);
+
+    private string PlanFilePrefix => SelectedPack.Equals("terrain", StringComparison.OrdinalIgnoreCase)
+        ? "03-HINH" : "03-BAN-DO";
+
+    private string GetSelectedSkillRoot()
+    {
+        if (_selected is null) throw new InvalidOperationException("Chưa chọn dự án.");
+        var profile = _engineCatalog.ResolveForProject(_selected.Directory);
+        return AiScriptStudio.ResolveSkillRoot(AppContext.BaseDirectory,
+            profile.EngineRoot, profile.Pack);
+    }
+
     private void LoadAiFiles()
     {
         if (_selected is null) return;
         var slug = _selected.Name;
         AiScriptEditor.Text = LoadIfExists(AiPath(slug, "01-SCRIPT", "txt"));
         AiVoiceEditor.Text = LoadIfExists(AiPath(slug, "02-VOICE", "txt"));
-        AiMapEditor.Text = LoadIfExists(AiPath(slug, "03-BAN-DO", "md"));
+        AiMapEditor.Text = LoadIfExists(AiPath(slug, PlanFilePrefix, "md"));
         AiPackageEditor.Text = LoadIfExists(AiPath(slug, "05-PACKAGE", "md"));
-        AiStatus.Text = "Đang mở dự án: " + _selected.Title;
+        AiStatus.Text = "Đang mở dự án: " + _selected.Title + " / Pack: " + SelectedPack;
     }
 
     private static string LoadIfExists(string path) =>
@@ -1173,7 +1187,7 @@ public partial class MainWindow : Window
         var request = BuildAiRequest();
         if (!ConfirmCustomEndpoint(request)) return;
         var slug = _selected.Name;
-        var skill = AiScriptStudio.ResolveSkillRoot(AppContext.BaseDirectory, _settings.StudioRoot);
+        var skill = GetSelectedSkillRoot();
         using var cts = new CancellationTokenSource();
         _aiCts = cts;
         AiRunButton.IsEnabled = false;
@@ -1182,7 +1196,7 @@ public partial class MainWindow : Window
         {
             var client = new AiScriptStudio(skill);
             if (!client.HasSkill)
-                throw new FileNotFoundException("Không tìm thấy skill kich-ban-bandosu hoặc references tại " + skill);
+                throw new FileNotFoundException("Pack này chưa có skill AI tương ứng. Cần SKILL.md và references/cau-truc.md tại " + skill);
             var progress = new Progress<string>(message =>
             {
                 AiStatus.Text = message;
