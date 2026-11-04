@@ -28,7 +28,7 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _environmentCts;
     private CancellationTokenSource? _aiCts;
     private CancellationTokenSource? _ttsCts;
-    private ITtsSynthesisProvider? _ttsProvider; // Connected when a real TTS API adapter is supplied.
+    private ITtsSynthesisProvider? _ttsProvider = null; // Replaced by an adapter when TTS API is supplied.
     private sealed record EnvironmentRow(DependencyKind Kind, string Name, string Status, string Details);
 
 
