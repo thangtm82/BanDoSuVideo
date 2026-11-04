@@ -54,7 +54,16 @@ public sealed class EnvironmentManager
 
     private string Engine => Path.GetFullPath(_settings.StudioRoot);
     private string PrivatePython => Path.Combine(Engine, ".venv", "Scripts", "python.exe");
-    private string PythonForPackages => File.Exists(PrivatePython) ? PrivatePython : _settings.PythonExecutable;
+    private string NpmExecutable => SiblingTool(_settings.NodeExecutable, "npm.cmd");
+    private string NpxExecutable => SiblingTool(_settings.NodeExecutable, "npx.cmd");
+    private string FfprobeExecutable => SiblingTool(_settings.FfmpegExecutable, "ffprobe.exe");
+
+    private static string SiblingTool(string configured, string sibling)
+    {
+        if (!Path.IsPathRooted(configured)) return sibling;
+        var candidate = Path.Combine(Path.GetDirectoryName(configured)!, sibling);
+        return File.Exists(candidate) ? candidate : sibling;
+    }
 
     private async Task<ProcessResult?> ProbeAsync(string executable, IEnumerable<string> arguments,
         string workingDirectory, CancellationToken cancellationToken)
@@ -107,7 +116,7 @@ public sealed class EnvironmentManager
                 result = await ProbeAsync(_settings.NodeExecutable, ["--version"], cwd, cancellationToken);
                 return FromProcess(kind, name, result);
             case DependencyKind.Npm:
-                result = await ProbeAsync("npm.cmd", ["--version"], cwd, cancellationToken);
+                result = await ProbeAsync(NpmExecutable, ["--version"], cwd, cancellationToken);
                 return FromProcess(kind, name, result);
             case DependencyKind.Python:
                 result = await ProbeAsync(_settings.PythonExecutable, ["--version"], cwd, cancellationToken);
@@ -116,12 +125,12 @@ public sealed class EnvironmentManager
                 result = await ProbeAsync(_settings.FfmpegExecutable, ["-version"], cwd, cancellationToken);
                 return FromProcess(kind, name, result);
             case DependencyKind.Ffprobe:
-                result = await ProbeAsync("ffprobe", ["-version"], cwd, cancellationToken);
+                result = await ProbeAsync(FfprobeExecutable, ["-version"], cwd, cancellationToken);
                 return FromProcess(kind, name, result);
             case DependencyKind.NpmPackages:
                 if (!File.Exists(Path.Combine(Engine, "package.json")))
                     return new(kind, name, false, "Không có package.json trong Engine.", false);
-                result = await ProbeAsync("npm.cmd", ["ls", "--depth=0", "--omit=dev"], Engine, cancellationToken);
+                result = await ProbeAsync(NpmExecutable, ["ls", "--depth=0", "--omit=dev"], Engine, cancellationToken);
                 return FromProcess(kind, name, result);
             case DependencyKind.PlaywrightChromium:
                 // The same Playwright package used by the engine resolves its browser path.
@@ -221,11 +230,11 @@ public sealed class EnvironmentManager
                     throw new FileNotFoundException("Không có package.json của H2 Studio.");
                 var verb = File.Exists(Path.Combine(Engine, "package-lock.json")) ? "ci" : "install";
                 log?.Invoke("Chạy npm " + verb + " tại " + Engine);
-                return await _runner.RunAsync("npm.cmd", [verb], Engine, log, cancellationToken);
+                return await _runner.RunAsync(NpmExecutable, [verb], Engine, log, cancellationToken);
             }
             case DependencyKind.PlaywrightChromium:
                 log?.Invoke("Cài Chromium tương thích với Playwright trong engine.");
-                return await _runner.RunAsync("npx.cmd",
+                return await _runner.RunAsync(NpxExecutable,
                     ["--no-install", "playwright", "install", "chromium"], Engine, log, cancellationToken);
             case DependencyKind.PythonPackages:
             {
