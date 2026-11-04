@@ -118,7 +118,7 @@ public sealed class EnvironmentManager
                 try
                 {
                     var cli = NodeTools.ResolveNpmCli();
-                    result = await ProbeAsync(_settings.NodeExecutable, [cli, "--version"], cwd, cancellationToken);
+                    result = await ProbeAsync(NodeTools.FindNodeExecutable()!, [cli, "--version"], cwd, cancellationToken);
                     return FromProcess(kind, name, result);
                 }
                 catch (FileNotFoundException ex)
@@ -140,7 +140,7 @@ public sealed class EnvironmentManager
                 try
                 {
                     var cli = NodeTools.ResolveNpmCli();
-                    result = await ProbeAsync(_settings.NodeExecutable,
+                    result = await ProbeAsync(NodeTools.FindNodeExecutable()!,
                         [cli, "ls", "--depth=0", "--omit=dev"], Engine, cancellationToken);
                     return FromProcess(kind, name, result);
                 }
@@ -247,7 +247,7 @@ public sealed class EnvironmentManager
                 var verb = File.Exists(Path.Combine(Engine, "package-lock.json")) ? "ci" : "install";
                 log?.Invoke("Chạy npm " + verb + " tại " + Engine);
                 var cli = NodeTools.ResolveNpmCli();
-                return await _runner.RunAsync(_settings.NodeExecutable,
+                return await _runner.RunAsync(NodeTools.FindNodeExecutable()!,
                     [cli, verb], Engine, log, cancellationToken);
             }
             case DependencyKind.PlaywrightChromium:
@@ -255,7 +255,8 @@ public sealed class EnvironmentManager
                 // npx.cmd or install an arbitrary latest Playwright package.
                 var playwrightCli = NodeTools.ResolvePlaywrightCli();
                 log?.Invoke("Cài Chromium theo Playwright của engine: " + playwrightCli);
-                return await _runner.RunAsync(_settings.NodeExecutable,
+                return await _runner.RunAsync(NodeTools.FindNodeExecutable() ??
+                    throw new FileNotFoundException("Không tìm thấy node.exe trong PATH."),
                     [playwrightCli, "install", "chromium"], Engine, log, cancellationToken);
             case DependencyKind.PythonPackages:
             {
