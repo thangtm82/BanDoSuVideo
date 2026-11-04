@@ -55,7 +55,10 @@ public sealed class AiScriptStudio
     public AiScriptStudio(string skillRoot, HttpClient? client = null)
     {
         _skillRoot = Path.GetFullPath(skillRoot);
-        _client = client ?? new HttpClient { Timeout = TimeSpan.FromMinutes(8) };
+        // A redirected custom endpoint must not forward script content or tokens.
+        // Injected HttpClient is used by deterministic tests.
+        _client = client ?? new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+        { Timeout = TimeSpan.FromMinutes(8) };
     }
 
     public bool HasSkill =>
