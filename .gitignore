@@ -1,0 +1,15 @@
+# .NET build output
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+# Generated video data / local H2 Studio
+engine/h2-2d-studio/
+projects/
+node_modules/
+*.mp4
+*.wav
+*.mp3
+# Local app config
+settings.json
