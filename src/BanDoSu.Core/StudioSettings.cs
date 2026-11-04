@@ -32,12 +32,15 @@ public sealed class StudioSettings
         var paths = new PortableStudioPaths();
         if (!SamePath(StudioRoot, paths.Engine) && !string.IsNullOrWhiteSpace(StudioRoot))
             LegacyEngineRoot = StudioRoot;
+        if (!SamePath(WorkspaceRoot, paths.Projects) && !string.IsNullOrWhiteSpace(WorkspaceRoot))
+            LegacyWorkspaceRoot = WorkspaceRoot;
         StudioRoot = paths.Engine;
         WorkspaceRoot = paths.Projects;
         ExportRoot = paths.Exports;
     }
     // Old external engine is remembered for non-destructive migration after switching.
     public string? LegacyEngineRoot { get; set; }
+    public string? LegacyWorkspaceRoot { get; set; }
 
     public string NodeExecutable { get; set; } = "node";
     public string PythonExecutable { get; set; } = "python";
