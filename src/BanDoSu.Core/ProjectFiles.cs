@@ -18,6 +18,8 @@ public sealed class ProjectFiles
     public string LegacyProjectsRoot => Path.GetFullPath(Path.Combine(Settings.StudioRoot, "projects"));
     public string? ExternalLegacyProjectsRoot => string.IsNullOrWhiteSpace(Settings.LegacyEngineRoot) ? null :
         Path.GetFullPath(Path.Combine(Settings.LegacyEngineRoot, "projects"));
+    public string? ExternalLegacyWorkspaceRoot => string.IsNullOrWhiteSpace(Settings.LegacyWorkspaceRoot) ? null :
+        Path.GetFullPath(Settings.LegacyWorkspaceRoot);
 
     public static void ValidateName(string name)
     {
@@ -53,6 +55,11 @@ public sealed class ProjectFiles
         if (Directory.Exists(current) && File.Exists(Path.Combine(current, "config.json"))) return current;
         var legacy = InRoot(LegacyProjectsRoot, name);
         if (Directory.Exists(legacy) && File.Exists(Path.Combine(legacy, "config.json"))) return legacy;
+        if (ExternalLegacyWorkspaceRoot is string oldWorkspace)
+        {
+            var older = InRoot(oldWorkspace, name);
+            if (Directory.Exists(older) && File.Exists(Path.Combine(older, "config.json"))) return older;
+        }
         if (ExternalLegacyProjectsRoot is string external)
         {
             var older = InRoot(external, name);
@@ -64,13 +71,15 @@ public sealed class ProjectFiles
     public bool Exists(string name) =>
         Directory.Exists(InRoot(ProjectsRoot, name)) ||
         Directory.Exists(InRoot(LegacyProjectsRoot, name)) ||
-        (ExternalLegacyProjectsRoot is string external && Directory.Exists(InRoot(external, name)));
+        (ExternalLegacyProjectsRoot is string external && Directory.Exists(InRoot(external, name))) ||
+        (ExternalLegacyWorkspaceRoot is string oldWorkspace && Directory.Exists(InRoot(oldWorkspace, name)));
 
     public IReadOnlyList<ProjectSummary> List()
     {
         var items = new Dictionary<string, ProjectSummary>(StringComparer.OrdinalIgnoreCase);
         var folders = new List<(string folder, bool legacy)>();
         if (ExternalLegacyProjectsRoot is string external) folders.Add((external, true));
+        if (ExternalLegacyWorkspaceRoot is string oldWorkspace) folders.Add((oldWorkspace, true));
         folders.Add((LegacyProjectsRoot, true));
         folders.Add((ProjectsRoot, false));
         foreach (var (folder, legacy) in folders)
