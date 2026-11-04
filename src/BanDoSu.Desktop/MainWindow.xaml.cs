@@ -27,6 +27,8 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<EnvironmentRow> _environmentRows = new();
     private CancellationTokenSource? _environmentCts;
     private CancellationTokenSource? _aiCts;
+    private CancellationTokenSource? _ttsCts;
+    private ITtsSynthesisProvider? _ttsProvider = null; // Replaced by an adapter when TTS API is supplied.
     private sealed record EnvironmentRow(DependencyKind Kind, string Name, string Status, string Details);
 
 
@@ -49,6 +51,7 @@ public partial class MainWindow : Window
         _projects = new ProjectFiles(_settings);
         _commands = new StudioCommands(_settings);
         FillSettings();
+        RefreshTtsVoiceChoices();
         AiCustomBaseUrl.Text = _settings.CustomAiBaseUrl;
         AiCustomEndpointInput.SelectedIndex = _settings.CustomAiEndpoint == AiCustomEndpoint.Responses ? 1 : 0;
         RefreshProjects();
@@ -78,7 +81,7 @@ public partial class MainWindow : Window
     {
         if (PortableStudioPaths.IsValidEngine(_settings.StudioRoot)) return true;
         Alert("Hãy chọn thư mục H2 Studio đã cài đặt trong Cài đặt (thư mục chứa render.mjs).");
-        MainTabs.SelectedIndex = 5;
+        MainTabs.SelectedIndex = 6; // Cài đặt
         return false;
     }
 
@@ -168,6 +171,7 @@ public partial class MainWindow : Window
         _scriptPath = projectScript;
         ScriptEditor.Text = File.Exists(projectScript) ? File.ReadAllText(projectScript, Encoding.UTF8) : "";
         VoiceFolder.Text = _projects.FileInProject(_selected.Name, "input", "voice");
+        TtsStatusText.Text = "Sẵn sàng chọn giọng đọc; API TTS chưa được cấu hình.";
         LoadAiFiles();
         try { LoadShots(); } catch (Exception ex) { Log("Lỗi tải cảnh: " + ex.Message); }
         StopPreviewHost();
@@ -218,6 +222,131 @@ public partial class MainWindow : Window
         _scriptPath = canonical;
         Log("Đã lưu lời đọc: " + canonical);
         return true;
+    }
+
+    private void RefreshTtsVoiceChoices()
+    {
+        var selectedId = _settings.TtsSelectedVoiceId ?? "";
+        TtsVoiceCombo.ItemsSource = null;
+        TtsVoiceCombo.ItemsSource = (_settings.TtsVoiceIds ?? [])
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        TtsVoiceCombo.Text = selectedId;
+    }
+
+    private void TtsSaveVoiceClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var id = TtsBatch.RequireVoiceId(TtsVoiceCombo.Text);
+            _settings.TtsVoiceIds ??= [];
+            if (!_settings.TtsVoiceIds.Contains(id, StringComparer.OrdinalIgnoreCase))
+                _settings.TtsVoiceIds.Add(id);
+            _settings.TtsSelectedVoiceId = id;
+            _settings.Save();
+            RefreshTtsVoiceChoices();
+            TtsStatusText.Text = "Đã lưu Voice ID: " + id +
+                ". Sau khi tích hợp API TTS, giọng này sẽ được dùng để tạo MP3.";
+        }
+        catch (Exception ex) { Alert(ex.Message); }
+    }
+
+    private void TtsRemoveVoiceClick(object sender, RoutedEventArgs e)
+    {
+        var id = TtsVoiceCombo.Text.Trim();
+        if (string.IsNullOrWhiteSpace(id)) return;
+        _settings.TtsVoiceIds ??= [];
+        _settings.TtsVoiceIds.RemoveAll(x => x.Equals(id, StringComparison.OrdinalIgnoreCase));
+        if (string.Equals(_settings.TtsSelectedVoiceId, id, StringComparison.OrdinalIgnoreCase))
+            _settings.TtsSelectedVoiceId = _settings.TtsVoiceIds.FirstOrDefault() ?? "";
+        _settings.Save();
+        RefreshTtsVoiceChoices();
+        TtsStatusText.Text = "Đã xóa Voice ID khỏi danh sách, không xóa file MP3 đã tạo.";
+    }
+
+    private async void TtsGenerateClick(object sender, RoutedEventArgs e)
+    {
+        if (_selected is null)
+        {
+            Alert("Hãy chọn dự án trước khi tạo MP3.");
+            MainTabs.SelectedIndex = 0;
+            return;
+        }
+        if (_operation != null || _environmentCts != null || _aiCts != null || _ttsCts != null)
+        {
+            Alert("Đang có tác vụ khác. Hãy hoàn thành hoặc hủy trước khi tạo MP3.");
+            return;
+        }
+
+        IReadOnlyList<TtsSegment> segments;
+        string voiceId;
+        try
+        {
+            segments = TtsBatch.ParseSegments(ScriptEditor.Text);
+            voiceId = TtsBatch.RequireVoiceId(TtsVoiceCombo.Text);
+            if (string.IsNullOrWhiteSpace(VoiceFolder.Text))
+                throw new InvalidDataException("Hãy chọn thư mục xuất MP3.");
+        }
+        catch (Exception ex) { Alert(ex.Message); return; }
+
+        // Avoid implying synthesis succeeded while no concrete backend exists.
+        if (_ttsProvider is null)
+        {
+            TtsStatusText.Text = $"Đã chuẩn bị {segments.Count} đoạn, giọng '{voiceId}', " +
+                $"đầu ra {VoiceFolder.Text}. Chưa cấu hình API TTS nên chưa có MP3 nào được tạo.";
+            Log("TTS: " + TtsStatusText.Text);
+            Alert("Chưa cấu hình API TTS. Khi bạn cung cấp endpoint, payload, xác thực và định dạng trả về, " +
+                "tính năng Tạo MP3 sẽ được nối vào bộ xử lý sẵn có.");
+            return;
+        }
+
+        using var cts = new CancellationTokenSource();
+        _ttsCts = cts;
+        TtsGenerateButton.IsEnabled = false;
+        TtsCancelButton.IsEnabled = true;
+        try
+        {
+            var progress = new Progress<TtsProgress>(p =>
+            {
+                TtsStatusText.Text = $"TTS: {p.Completed}/{p.Total} — {p.Message}";
+                Log(TtsStatusText.Text);
+            });
+            var total = await TtsBatch.GenerateAsync(
+                ScriptEditor.Text, voiceId, VoiceFolder.Text, _ttsProvider, progress, cts.Token);
+            TtsStatusText.Text = $"Đã tạo {total} MP3 trong {VoiceFolder.Text}.";
+            Log("TTS: " + TtsStatusText.Text);
+        }
+        catch (OperationCanceledException)
+        {
+            TtsStatusText.Text = "Đã hủy TTS. Những MP3 hoàn thành trước đó được giữ lại.";
+        }
+        catch (Exception ex)
+        {
+            TtsStatusText.Text = "Tạo MP3 thất bại: " + ex.Message;
+            Log("TTS: " + TtsStatusText.Text);
+            Alert(TtsStatusText.Text);
+        }
+        finally
+        {
+            _ttsCts = null;
+            TtsGenerateButton.IsEnabled = true;
+            TtsCancelButton.IsEnabled = false;
+        }
+    }
+
+    private void TtsCancelClick(object sender, RoutedEventArgs e) => _ttsCts?.Cancel();
+
+    private void TtsOpenFolderClick(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(VoiceFolder.Text))
+        {
+            Alert("Hãy chọn thư mục MP3.");
+            return;
+        }
+        var path = Path.GetFullPath(VoiceFolder.Text);
+        Directory.CreateDirectory(path);
+        OpenPath(path);
     }
 
     private void SaveScriptClick(object sender, RoutedEventArgs e) => SaveScript();
@@ -624,6 +753,12 @@ public partial class MainWindow : Window
             ExportRoot = ExportRootText.Text.Trim(),
             LegacyEngineRoot = _settings.LegacyEngineRoot,
             LegacyWorkspaceRoot = _settings.LegacyWorkspaceRoot,
+            // Saving filesystem settings must not erase AI or voice profiles.
+            CustomAiBaseUrl = _settings.CustomAiBaseUrl,
+            CustomAiModel = _settings.CustomAiModel,
+            CustomAiEndpoint = _settings.CustomAiEndpoint,
+            TtsVoiceIds = (_settings.TtsVoiceIds ?? []).ToList(),
+            TtsSelectedVoiceId = _settings.TtsSelectedVoiceId ?? "",
             NodeExecutable = NodeText.Text.Trim(),
             PythonExecutable = PythonText.Text.Trim(),
             FfmpegExecutable = FfmpegText.Text.Trim()
@@ -928,7 +1063,7 @@ public partial class MainWindow : Window
             ProjectFiles.SaveText(path, AiVoiceEditor.Text);
             ScriptEditor.Text = AiVoiceEditor.Text;
             _scriptPath = path;
-            MainTabs.SelectedIndex = 1;
+            MainTabs.SelectedIndex = 2; // Kịch bản và giọng đọc
             AiStatus.Text = "Đã chuyển lời đọc vào input/02-VOICE.txt. Hãy tạo 1.mp3, 2.mp3... theo số đoạn trước khi tạo timeline.";
             Log(AiStatus.Text);
         }
@@ -940,7 +1075,7 @@ public partial class MainWindow : Window
 
     private void OpenEnvironmentClick(object sender, RoutedEventArgs e)
     {
-        MainTabs.SelectedIndex = 6; // appended after the six existing tabs
+        MainTabs.SelectedIndex = 7; // Quản lý môi trường
     }
 
     private void SetEnvironmentBusy(bool busy)
@@ -1104,6 +1239,7 @@ public partial class MainWindow : Window
     {
         _operation?.Cancel();
         _environmentCts?.Cancel();
+        _ttsCts?.Cancel();
     }
 
     private void OnWindowClosing(object? sender, CancelEventArgs e)
@@ -1111,6 +1247,7 @@ public partial class MainWindow : Window
         _operation?.Cancel();
         _environmentCts?.Cancel();
         _aiCts?.Cancel();
+        _ttsCts?.Cancel();
         StopPreviewHost();
         VideoPlayer.Stop();
     }

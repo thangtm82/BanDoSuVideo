@@ -47,6 +47,11 @@ public sealed class StudioSettings
     public string CustomAiModel { get; set; } = "";
     public AiCustomEndpoint CustomAiEndpoint { get; set; } = AiCustomEndpoint.ChatCompletions;
 
+    // Voice IDs are only labels/identifiers. Provider credentials will be
+    // configured separately when a concrete TTS API is supplied.
+    public List<string> TtsVoiceIds { get; set; } = [];
+    public string TtsSelectedVoiceId { get; set; } = "";
+
     public string NodeExecutable { get; set; } = "node";
     public string PythonExecutable { get; set; } = "python";
     public string FfmpegExecutable { get; set; } = "ffmpeg";
