@@ -93,6 +93,56 @@ try
     }
 
 
+    var portable = new PortableStudioPaths(Path.Combine(root, "portable-app"));
+    portable.Initialize();
+    Check(Directory.Exists(portable.Engine) && Directory.Exists(portable.Projects) &&
+          Directory.Exists(portable.Exports), "portable sibling folders created");
+    Check(!portable.HasEngine, "empty engine is not considered installed");
+
+    var fixture = Path.Combine(root, "h2-source");
+    Directory.CreateDirectory(Path.Combine(fixture, "tools"));
+    Directory.CreateDirectory(Path.Combine(fixture, "packs"));
+    Directory.CreateDirectory(Path.Combine(fixture, "projects", "user-data"));
+    Directory.CreateDirectory(Path.Combine(fixture, "node_modules"));
+    Directory.CreateDirectory(Path.Combine(fixture, ".venv"));
+    ProjectFiles.SaveText(Path.Combine(fixture, "render.mjs"), "// test");
+    ProjectFiles.SaveText(Path.Combine(fixture, "player.html"), "<html></html>");
+    ProjectFiles.SaveText(Path.Combine(fixture, "tools", "doctor.py"), "# test");
+    ProjectFiles.SaveText(Path.Combine(fixture, "packs", "pack.js"), "// test");
+    ProjectFiles.SaveText(Path.Combine(fixture, "projects", "user-data", "config.json"), "{}");
+    ProjectFiles.SaveText(Path.Combine(fixture, "node_modules", "placeholder.js"), "// test");
+    ProjectFiles.SaveText(Path.Combine(fixture, ".venv", "ignore.txt"), "test");
+    Check(PortableStudioPaths.IsValidEngine(fixture), "engine fixture is complete");
+    portable.ImportEngineAsync(fixture).GetAwaiter().GetResult();
+    Check(portable.HasEngine, "portable imported engine usable");
+    Check(File.Exists(Path.Combine(fixture, "render.mjs")), "original engine unchanged");
+    Check(!Directory.Exists(Path.Combine(portable.Engine, "projects")), "engine projects excluded from import");
+    Check(!Directory.Exists(Path.Combine(portable.Engine, "node_modules")), "npm dependencies excluded from import");
+    Check(!Directory.Exists(Path.Combine(portable.Engine, ".venv")), "Python venv excluded from import");
+    Check(File.Exists(Path.Combine(portable.Engine, "tools", "doctor.py")), "engine tools imported");
+    var importBlocked = false;
+    try { portable.ImportEngineAsync(fixture).GetAwaiter().GetResult(); }
+    catch (IOException) { importBlocked = true; }
+    Check(importBlocked, "existing engine protected from overwrite");
+
+    var portableSettings = new StudioSettings();
+    portableSettings.UsePortablePaths();
+    Check(portableSettings.IsPortable, "portable settings use EXE root");
+    var externalConfig = new StudioSettings
+    {
+        StudioRoot = engine, WorkspaceRoot = portable.Projects, ExportRoot = portable.Exports,
+        LegacyEngineRoot = engine
+    };
+    var oldProjects = new ProjectFiles(externalConfig);
+    Check(oldProjects.List().Any(x => x.Name == "legacy"), "external engine project discovery");
+    externalConfig.UsePortablePaths();
+    Check(externalConfig.LegacyEngineRoot == engine, "switch remembers old engine");
+    var afterSwitch = new ProjectFiles(externalConfig);
+    Check(afterSwitch.List().Any(x => x.Name == "legacy" && x.IsLegacy), "old projects remain visible after switch");
+    var migrated = afterSwitch.CopyLegacyProjectToWorkspace("legacy");
+    Check(File.Exists(Path.Combine(migrated, "config.json")), "legacy project copied into portable workspace");
+    Check(File.Exists(legacyConfig), "legacy source preserved after portable migration");
+
     Console.WriteLine("PASS: all workspace/export smoke assertions.");
 }
 finally
