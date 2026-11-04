@@ -187,9 +187,45 @@
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <Button Content="Lưu cài đặt" Click="SaveSettingsClick"/>
                         <Button Content="Kiểm tra môi trường Studio" Click="DoctorClick"/>
+                        <Button Content="Quản lý / cài đặt môi trường" Click="OpenEnvironmentClick"/>
                     </StackPanel>
                     <TextBlock Margin="4,18" TextWrapping="Wrap" Text="Dự án mới được lưu tại Workspace. Dự án cũ dưới engine/projects vẫn có thể sử dụng. Thư mục Xuất video chứa bản sao kết quả sau bước Ghép âm thanh hoặc khi bấm Sao chép sang thư mục xuất. Engine H2 vẫn cần Node.js, Playwright Chromium, Python và FFmpeg."/>
                 </StackPanel>
+            </TabItem>
+            <TabItem Header="Quản lý môi trường">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Thiết lập môi trường H2 Studio" FontSize="20" FontWeight="Bold" Margin="5"/>
+                        <TextBlock Text="Kiểm tra các runtime và thư viện cần thiết. Chỉ cài đặt khi bạn chủ động xác nhận. Việc cài gói hệ thống sử dụng WinGet từ nguồn chính thức; một số thành phần có thể cần quyền quản trị." TextWrapping="Wrap" Margin="5"/>
+                    </StackPanel>
+                    <WrapPanel Grid.Row="1" Margin="0,8">
+                        <Button x:Name="EnvCheckButton" Content="Kiểm tra tất cả" Click="EnvCheckClick"/>
+                        <Button x:Name="EnvInstallSelectedButton" Content="Cài mục đã chọn" Click="EnvInstallSelectedClick"/>
+                        <Button x:Name="EnvInstallMissingButton" Content="Cài tất cả thành phần thiếu" Click="EnvInstallMissingClick"/>
+                        <Button x:Name="EnvRepairButton" Content="Kiểm tra và sửa chữa" Click="EnvRepairClick"/>
+                        <Button x:Name="EnvCancelButton" Content="Hủy cài đặt" Click="EnvCancelClick"/>
+                    </WrapPanel>
+                    <DataGrid x:Name="EnvironmentGrid" Grid.Row="2" AutoGenerateColumns="False"
+                              IsReadOnly="True" SelectionMode="Single" Margin="4" CanUserAddRows="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Thành phần" Binding="{Binding Name}" Width="2*"/>
+                            <DataGridTextColumn Header="Trạng thái" Binding="{Binding Status}" Width="140"/>
+                            <DataGridTextColumn Header="Chi tiết / phiên bản" Binding="{Binding Details}" Width="4*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Grid.Row="3" Margin="4,9">
+                        <TextBlock x:Name="EnvironmentStatus" Text="Nhấn Kiểm tra tất cả để bắt đầu."/>
+                        <ProgressBar x:Name="EnvironmentProgressBar" Minimum="0" Maximum="100" Height="16" Margin="0,6,0,0"/>
+                    </StackPanel>
+                    <TextBlock Grid.Row="4" Margin="5" TextWrapping="Wrap" Text="Thứ tự: Node.js/npm → Python → FFmpeg/FFprobe → WebView2 → gói npm → Playwright Chromium → thư viện Python trong .venv. Sau khi cài runtime hệ thống, có thể cần khởi động lại ứng dụng để nhận PATH mới."/>
+                </Grid>
             </TabItem>
         </TabControl>
     </DockPanel>
