@@ -111,3 +111,18 @@ Trong tab **AI Kịch bản → Nhà cung cấp**, chọn **Custom (OpenAI Compa
 Ứng dụng **chỉ lưu Base URL, Model và loại endpoint** trong `%LOCALAPPDATA%\\BanDoSuVideo\\settings.json`; không lưu API key. Khi đổi nhà cung cấp, ô API key được xóa để tránh vô tình chuyển khóa sang server khác. Đừng đưa API key nhạy cảm cho endpoint HTTP công khai; ưu tiên HTTPS, trừ server `localhost`/loopback đáng tin cậy.
 
 Lựa chọn **OpenAI** vẫn gọi `https://api.openai.com/v1/responses`; **Gemini** vẫn gọi Gemini API. Custom sử dụng `chat/completions` với `messages` + `choices[0].message.content` hoặc `responses` với `input` + `output[].content[].text`. Chưa hỗ trợ streaming/SSE hoặc các biến thể proxy trả dữ liệu không đúng một trong hai schema này.
+
+## Tab AI Kịch bản và khung TTS cho API sắp tích hợp
+
+Các tab chính theo thứ tự: **Dự án → AI Kịch bản → Kịch bản và giọng đọc → Biên tập cảnh bản đồ → Xem trước bản đồ → Dựng và xem video → Cài đặt → Quản lý môi trường**.
+
+Trong tab **Kịch bản và giọng đọc**, mục **TTS · Giọng đọc** có thể:
+- Chọn/nhập Voice ID, **Lưu giọng**, **Xóa giọng** khỏi danh sách. Voice ID là định danh tùy API TTS tương lai, không phải tên voice hợp lệ đã được kiểm tra.
+- Mở kịch bản được ngăn đoạn bằng dấu |, mỗi đoạn tương ứng 1.mp3, 2.mp3,...; chọn thư mục xuất MP3, mặc định theo dự án là input/voice/.
+- Bấm **Tạo MP3** để kiểm tra nội dung, Voice ID và nơi lưu. Khi chưa có API, ứng dụng báo rõ **Chưa cấu hình API TTS** và không ghi MP3 giả.
+- Sau khi tích hợp API, nút đó sẽ gọi bộ xử lý TTS theo từng đoạn, có hỗ trợ hủy. Tệp MP3 đã tồn tại không bị ghi đè tự động.
+- Sử dụng các nút **Kiểm tra số tệp MP3**, **Tạo timeline lời đọc** với file thật được tạo bởi API sau này hoặc bằng công cụ ngoài.
+
+Trong Core, interface ITtsSynthesisProvider yêu cầu hàm SynthesizeMp3Async(text, voiceId, cancellationToken) trả về bytes MP3. TtsBatch kiểm tra số đoạn, đánh số MP3, kiểm tra chữ ký định dạng, ghi file tạm an toàn và hủy. Khi có API TTS, chỉ cần cài adapter đáp ứng hợp đồng này.
+
+**Giới hạn:** Đây là giao diện và khung xử lý; chưa có provider TTS chạy thật, chưa lấy danh sách voice tự động. Voice ID lưu trong settings.json, không lưu API key. Để tích hợp tiếp, cần endpoint, xác thực, request/response, danh sách Voice IDs, rate limit, và định dạng audio.
