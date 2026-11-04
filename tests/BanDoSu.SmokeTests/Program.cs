@@ -377,6 +377,9 @@ try
         AddFile(archive, prefix + "packs/terrain/pack.js", "// terrain pack");
         AddFile(archive, prefix + "projects/private-voice/1.mp3", "private data omitted");
         AddFile(archive, prefix + "node_modules/huge.txt", "npm dependency omitted");
+        AddFile(archive, "skills/lam-video-terrain/SKILL.md", "Terrain video skill");
+        AddFile(archive, "skills/lam-video-terrain/references/mau-canh.md", "Terrain visual examples");
+        AddFile(archive, "skills/lam-video-terrain/references/phong-cach.md", "Terrain appearance rules");
         AddFile(archive, "skills/kich-ban-terrain/SKILL.md", "Terrain script skill");
         AddFile(archive, "skills/kich-ban-terrain/references/cau-truc.md", "9 nhịp Terrain");
     }
@@ -395,6 +398,11 @@ try
         "Multi-Pack importer skips user projects and npm caches");
     Check(File.Exists(Path.Combine(terrainEngine, "skills", "kich-ban-terrain", "SKILL.md")),
         "Terrain authoring skill imported from ZIP");
+    Check(File.Exists(Path.Combine(terrainEngine, "skills", "lam-video-terrain",
+        "references", "mau-canh.md")),
+        "Terrain Scene Builder references imported next to the engine");
+    Check(!Directory.Exists(Path.Combine(terrainEngine, "skills", "lam-video-terrain", "kit")),
+        "Terrain authoring references do not duplicate bundled kit");
     Check(File.Exists(Path.Combine(engine, "packs", "bando", "pack.js")),
         "Original bando engine remains untouched");
 
