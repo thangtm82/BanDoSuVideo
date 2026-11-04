@@ -622,6 +622,33 @@ try
         .Any(i => i.Code == "ANGULAR_RIVER") == false,
         "Terrain v3 accepts four-point polyline while flagging simple ones");
 
+    // V4: subject-aware framing and historical finale warning must reference existing units.
+    var v4WideFinale = JsonNode.Parse("""
+      {"worlds":{"W01":{"size":[2000,1500],"hills":[{"p":[0,0],"r":200,"h":50}],
+        "rivers":[{"pts":[[-600,-100],[-400,0],[0,100],[500,150]]}],
+        "villages":[{"p":[0,0],"n":12}],
+        "units":[{"id":"capital","p":[0,0],"kind":"flag","side":"pale"}]}},
+       "shots":[
+        {"id":"s001","start":0,"end":3,"line":"Giới thiệu địa hình",
+         "tpl":"tw","args":{"world":"W01","cam":{"c":[0,0],"dist":1800,"az":10,"el":50}}},
+        {"id":"s002","start":3,"end":6,"line":"Thăng Long trở thành kinh đô",
+         "tpl":"tw","args":{"world":"W01","pins":[{"u":"capital","t":"Thăng Long"}],
+           "cam":{"c":[900,650],"dist":2900,"az":0,"el":78}}}]}
+      """)!;
+    var v4Problems = TerrainSceneQuality.Evaluate(v4WideFinale);
+    Check(v4Problems.Any(i => i.Code == "SUBJECT_OFF_CENTER" && i.Subject == "s002") &&
+          v4Problems.Any(i => i.Code == "SUBJECT_TOO_SMALL" && i.Subject == "s002") &&
+          v4Problems.Any(i => i.Code == "WEAK_FINALE" && i.Subject == "s002"),
+          "Terrain v4 detects an off-center, distant weak capital finale");
+    var correctedCamera = (JsonObject)v4WideFinale["shots"]![1]!["args"]!["cam"]!;
+    correctedCamera["c"] = new JsonArray(0, 0);
+    correctedCamera["dist"] = 700;
+    correctedCamera["el"] = 42;
+    var correctedProblems = TerrainSceneQuality.Evaluate(v4WideFinale);
+    Check(!correctedProblems.Any(i => i.Subject == "s002" &&
+          TerrainSceneQuality.CameraRepairCodes.Contains(i.Code)),
+          "Terrain v4 passes a focused finale camera without changing world or voice");
+
     var concurrentEditBlocked = false;
     try { AiTerrainSceneBuilder.SaveWithBackup(aiTerrainProject, candidateTerrain, terrainDraft); }
     catch (IOException) { concurrentEditBlocked = true; }
