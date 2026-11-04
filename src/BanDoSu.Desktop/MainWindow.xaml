@@ -168,6 +168,7 @@
                             <Button Content="Lưu giọng" Click="TtsSaveVoiceClick"/>
                             <Button Content="Xóa giọng" Click="TtsRemoveVoiceClick"/>
                             <Button x:Name="TtsGenerateButton" Content="Tạo MP3" Click="TtsGenerateClick"/>
+                            <Button x:Name="TtsCancelButton" Content="Hủy TTS" Click="TtsCancelClick" IsEnabled="False"/>
                             <Button Content="Mở thư mục MP3" Click="TtsOpenFolderClick"/>
                         </WrapPanel>
                         <TextBlock x:Name="TtsStatusText" Margin="6,0,0,6" TextWrapping="Wrap"
