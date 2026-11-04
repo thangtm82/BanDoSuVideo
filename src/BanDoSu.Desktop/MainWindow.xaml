@@ -90,7 +90,19 @@
                     </DataGrid>
                     <Grid Grid.Row="1" Grid.Column="1" Margin="8,0,0,0">
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                        <TextBlock Text="Scene args (JSON)" FontSize="16" FontWeight="Bold" Margin="4"/>
+                        <StackPanel>
+                            <TextBlock Text="Map scene properties" FontSize="16" FontWeight="Bold" Margin="4"/>
+                            <WrapPanel>
+                                <TextBlock Text="View" VerticalAlignment="Center" Margin="5"/>
+                                <TextBox Name="MapViewInput" Width="130" ToolTip="Example: bac-bo"/>
+                                <TextBlock Text="Year" VerticalAlignment="Center" Margin="5"/>
+                                <TextBox Name="MapYearInput" Width="75"/>
+                                <TextBlock Text="Label place" VerticalAlignment="Center" Margin="5"/>
+                                <TextBox Name="MapPlaceInput" Width="115" ToolTip="Example: hoa-lu"/>
+                                <Button Content="Apply map fields" Click="ApplyMapFieldsClick"/>
+                            </WrapPanel>
+                            <TextBlock Text="Advanced scene args (JSON)" FontWeight="SemiBold" Margin="4,5,4,0"/>
+                        </StackPanel>
                         <TextBox Grid.Row="1" Name="ArgsEditor" AcceptsReturn="True" TextWrapping="NoWrap"
                                  FontFamily="Consolas" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
                         <Button Grid.Row="2" Content="Apply scene changes" HorizontalAlignment="Left" Click="ApplyShotClick"/>
