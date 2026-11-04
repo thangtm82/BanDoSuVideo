@@ -423,6 +423,27 @@ public partial class MainWindow : Window
             if (File.Exists(p)) { VideoPlayer.Source = new Uri(p); VideoPlayer.Play(); }
         });
     private async void FullRenderClick(object sender, RoutedEventArgs e) => await Render(RenderMode.Full, "Full video render");
+    private void CreateThumbSceneClick(object sender, RoutedEventArgs e)
+    {
+        if (!HasProject()) return;
+        var path = _projects.FileInProject(_selected!.Name, "scenes", "shots", "thumb.js");
+        if (File.Exists(path) && MessageBox.Show(this, "Replace existing thumbnail scene?",
+                "Confirm overwrite", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+        try
+        {
+            if (File.Exists(path)) File.Copy(path, path + ".bak", true);
+            var view = JsonSerializer.Serialize(ThumbViewInput.Text.Trim());
+            var first = JsonSerializer.Serialize(ThumbLineOne.Text.Trim());
+            var second = JsonSerializer.Serialize(ThumbLineTwo.Text.Trim());
+            var source = "import { thumb } from '/packs/bando/pack.js';\\n" +
+                $"thumb({{ view: {view}, lines: [{first}, {second}], colors: ['white', 'yellow'], pos: 'br' }});\\n";
+            ProjectFiles.SaveText(path, source.Replace("\\n", Environment.NewLine));
+            Log("Created thumbnail scene: " + path);
+        }
+        catch (Exception ex) { Alert("Cannot create thumbnail source: " + ex.Message); }
+    }
+
     private async void ThumbnailRenderClick(object sender, RoutedEventArgs e) => await Render(RenderMode.Thumbnail,
         "Thumbnail", () => OpenPath(Path.Combine(_selected!.Directory, "out")));
 
