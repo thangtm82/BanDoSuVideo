@@ -38,10 +38,30 @@
                         <TextBox Name="NewSlug" Text="hoa-lu-thang-long"/>
                         <TextBlock Text="Tiêu đề video" Margin="4"/>
                         <TextBox Name="NewTitle" Text="Hoa Lư - Thăng Long năm 1010"/>
+                        <TextBlock Text="Loại dự án / Pack + phiên bản engine" Margin="4"/>
+                        <ComboBox x:Name="NewPackCombo" DisplayMemberPath="DisplayName"
+                                  SelectionChanged="NewPackChanged" Margin="4,0" MinHeight="27"/>
+                        <WrapPanel Margin="4,6,0,4">
+                            <TextBlock Text="Ngôn ngữ" VerticalAlignment="Center"/>
+                            <TextBox x:Name="NewLangInput" Text="vi" Width="65" Margin="5,0,10,0"/>
+                            <TextBlock Text="Style" VerticalAlignment="Center"/>
+                            <TextBox x:Name="NewStyleInput" Text="flat" Width="90" Margin="5,0,0,0"/>
+                        </WrapPanel>
+                        <TextBlock x:Name="PackStatus" Margin="4" TextWrapping="Wrap"
+                                   Text="Chưa phát hiện H2 Pack. Hãy nhập engine từ ZIP hoặc thư mục kit."/>
+                        <WrapPanel>
+                            <Button Content="Nhập ZIP H2 / Terrain" Click="ImportPackZipClick"/>
+                            <Button Content="Nhập thư mục engine" Click="ImportPackFolderClick"/>
+                            <Button Content="Quét các Pack" Click="RefreshPacksClick"/>
+                        </WrapPanel>
                         <CheckBox Name="NewCaptions" Margin="8" Content="Bật phụ đề karaoke" IsChecked="True"/>
                         <Button Content="Tạo dự án" Click="CreateProjectClick" HorizontalAlignment="Left"/>
                         <Button Content="Mở thư mục dự án" Click="OpenProjectFolderClick" HorizontalAlignment="Left"/>
                         <Button Content="Sao chép dự án cũ vào Workspace" Click="MigrateLegacyClick" HorizontalAlignment="Left"/>
+                        <TextBlock x:Name="SelectedEngineInfo" Margin="4,10,4,4"
+                                   TextWrapping="Wrap" Text="Engine của dự án: chưa chọn"/>
+                        <Button Content="Gắn dự án với engine đã chọn (cùng Pack)"
+                                Click="BindProjectEngineClick" HorizontalAlignment="Left"/>
                         <TextBlock TextWrapping="Wrap" Margin="6,16,0,0" Text="Bản Portable tạo studio, Projects và Exports cạnh tệp EXE. Dự án cũ vẫn có thể sao chép sang Workspace."/>
                     </StackPanel>
                 </Grid>
