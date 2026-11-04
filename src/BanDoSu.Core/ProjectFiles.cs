@@ -16,6 +16,8 @@ public sealed class ProjectFiles
 
     public string ProjectsRoot => Path.GetFullPath(Settings.WorkspaceRoot);
     public string LegacyProjectsRoot => Path.GetFullPath(Path.Combine(Settings.StudioRoot, "projects"));
+    public string? ExternalLegacyProjectsRoot => string.IsNullOrWhiteSpace(Settings.LegacyEngineRoot) ? null :
+        Path.GetFullPath(Path.Combine(Settings.LegacyEngineRoot, "projects"));
 
     public static void ValidateName(string name)
     {
@@ -51,16 +53,27 @@ public sealed class ProjectFiles
         if (Directory.Exists(current) && File.Exists(Path.Combine(current, "config.json"))) return current;
         var legacy = InRoot(LegacyProjectsRoot, name);
         if (Directory.Exists(legacy) && File.Exists(Path.Combine(legacy, "config.json"))) return legacy;
+        if (ExternalLegacyProjectsRoot is string external)
+        {
+            var older = InRoot(external, name);
+            if (Directory.Exists(older) && File.Exists(Path.Combine(older, "config.json"))) return older;
+        }
         return current;
     }
 
     public bool Exists(string name) =>
-        Directory.Exists(InRoot(ProjectsRoot, name)) || Directory.Exists(InRoot(LegacyProjectsRoot, name));
+        Directory.Exists(InRoot(ProjectsRoot, name)) ||
+        Directory.Exists(InRoot(LegacyProjectsRoot, name)) ||
+        (ExternalLegacyProjectsRoot is string external && Directory.Exists(InRoot(external, name)));
 
     public IReadOnlyList<ProjectSummary> List()
     {
         var items = new Dictionary<string, ProjectSummary>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (folder, legacy) in new[] { (LegacyProjectsRoot, true), (ProjectsRoot, false) })
+        var folders = new List<(string folder, bool legacy)>();
+        if (ExternalLegacyProjectsRoot is string external) folders.Add((external, true));
+        folders.Add((LegacyProjectsRoot, true));
+        folders.Add((ProjectsRoot, false));
+        foreach (var (folder, legacy) in folders)
         {
             if (!Directory.Exists(folder)) continue;
             foreach (var directory in Directory.GetDirectories(folder))
@@ -143,8 +156,10 @@ public sealed class ProjectFiles
     {
         ValidateName(name);
         ValidateRoots(Settings);
-        var source = InRoot(LegacyProjectsRoot, name);
+        var source = ResolveProject(name);
         var destination = InRoot(ProjectsRoot, name);
+        if (string.Equals(source, destination, StringComparison.OrdinalIgnoreCase))
+            throw new IOException("Dự án đã nằm trong Workspace.");
         if (!File.Exists(Path.Combine(source, "config.json")))
             throw new FileNotFoundException("Không tìm thấy dự án cũ trong engine.");
         if (Directory.Exists(destination))
