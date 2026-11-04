@@ -97,3 +97,17 @@ Quy trình:
 - Không tích hợp TTS; đoạn voice được xuất dưới dạng văn bản phân cách `|`, cần tạo MP3 bằng công cụ ngoài.
 - Không lưu API key xuống ổ đĩa; nhập lại khi khởi động lần khác.
 - Nếu model trả bản thảo quá ngắn hoặc bị cắt do giới hạn output, hãy đổi model hoặc chỉnh sửa và chạy lại.
+
+### Custom (OpenAI Compatible)
+
+Trong tab **AI Kịch bản → Nhà cung cấp**, chọn **Custom (OpenAI Compatible)**. Nhập:
+
+- **Base URL:** ví dụ `http://127.0.0.1:8080/v1` (local Strata/llama.cpp) hoặc URL HTTPS của proxy tương thích OpenAI. Có thể nhập URL trọn vẹn `.../v1/chat/completions` / `.../v1/responses`, ứng dụng chuẩn hóa phần endpoint.
+- **Model:** đúng model ID mà server chấp nhận (ví dụ `my-local-model`).
+- **Endpoint:** chọn `/v1/chat/completions` (mặc định) hoặc `/v1/responses`, theo API mà server hỗ trợ.
+- **API key:** không bắt buộc cho server local không xác thực; nếu cung cấp, ứng dụng gửi header `Authorization: Bearer <key>`.
+- Bấm **Test Connection** để gửi một request nhỏ yêu cầu trả lời `OK`; việc test gọi API thật và có thể phát sinh phí. Kết quả kiểm tra không đảm bảo model sẽ tạo thành công kịch bản dài.
+
+Ứng dụng **chỉ lưu Base URL, Model và loại endpoint** trong `%LOCALAPPDATA%\\BanDoSuVideo\\settings.json`; không lưu API key. Khi đổi nhà cung cấp, ô API key được xóa để tránh vô tình chuyển khóa sang server khác. Đừng đưa API key nhạy cảm cho endpoint HTTP công khai; ưu tiên HTTPS, trừ server `localhost`/loopback đáng tin cậy.
+
+Lựa chọn **OpenAI** vẫn gọi `https://api.openai.com/v1/responses`; **Gemini** vẫn gọi Gemini API. Custom sử dụng `chat/completions` với `messages` + `choices[0].message.content` hoặc `responses` với `input` + `output[].content[].text`. Chưa hỗ trợ streaming/SSE hoặc các biến thể proxy trả dữ liệu không đúng một trong hai schema này.

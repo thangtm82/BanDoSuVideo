@@ -231,6 +231,61 @@ try
         Check(geminiHandler.CallCount == 3, "Gemini three-step generation");
         Check(geminiHandler.AllRequestsAuthorized, "Gemini x-goog-api-key header, no URL secrets");
     }
+    // OpenAI-compatible URL normalization and validation.
+    Check(AiEndpoint.Resolve("http://127.0.0.1:8080/v1", AiCustomEndpoint.ChatCompletions)
+        .ToString() == "http://127.0.0.1:8080/v1/chat/completions",
+        "Custom chat endpoint from /v1");
+    Check(AiEndpoint.Resolve("http://localhost:8080/v1/chat/completions",
+        AiCustomEndpoint.Responses).AbsolutePath == "/v1/responses",
+        "Custom endpoint switch does not append twice");
+    Check(AiEndpoint.Resolve("https://proxy.example.com/tenant/v1/responses",
+        AiCustomEndpoint.ChatCompletions).AbsolutePath == "/tenant/v1/chat/completions",
+        "Custom endpoint preserves proxy prefix");
+    var invalidUrl = false;
+    try { AiEndpoint.Resolve("file:///etc/passwd", AiCustomEndpoint.Responses); }
+    catch (ArgumentException) { invalidUrl = true; }
+    Check(invalidUrl, "Custom URL rejects unsupported protocols");
+
+    var customSettings = new StudioSettings
+    {
+        CustomAiBaseUrl = "http://127.0.0.1:8080/v1",
+        CustomAiModel = "local-model",
+        CustomAiEndpoint = AiCustomEndpoint.Responses
+    };
+    var serializedSettings = System.Text.Json.JsonSerializer.Serialize(customSettings);
+    Check(!serializedSettings.Contains("secret-gemini-key"), "settings do not accidentally serialize test key");
+    var restoredSettings = System.Text.Json.JsonSerializer.Deserialize<StudioSettings>(serializedSettings)!;
+    Check(restoredSettings.CustomAiModel == "local-model" &&
+        restoredSettings.CustomAiEndpoint == AiCustomEndpoint.Responses, "Custom preferences round-trip");
+
+    var customChat = new FakeCustomHandler(generatedScript, AiCustomEndpoint.ChatCompletions, false);
+    using (var http = new HttpClient(customChat))
+    {
+        var ai = new AiScriptStudio(skillFixture, http);
+        var request = new AiScriptRequest(AiScriptProvider.Custom, "local-coder",
+            "", "Vì sao Hoa Lư chuyển về Thăng Long?", 12,
+            "http://127.0.0.1:8080/v1", AiCustomEndpoint.ChatCompletions);
+        var connection = ai.TestConnectionAsync(request).GetAwaiter().GetResult();
+        Check(connection.Contains("Kết nối thành công"), "Custom chat Test Connection succeeds");
+        var output = ai.GenerateAsync(request, "hoa-lu-custom-chat").GetAwaiter().GetResult();
+        Check(AiScriptStudio.EquivalentNarration(output.Script, output.Voice), "Custom chat script/voice parity");
+        Check(customChat.CallCount == 4, "Custom chat uses one probe and three generation requests");
+        Check(customChat.AllRequestsValid, "Custom chat request schema, target and optional no-auth");
+    }
+    var customResponses = new FakeCustomHandler(generatedScript, AiCustomEndpoint.Responses, true);
+    using (var http = new HttpClient(customResponses))
+    {
+        var ai = new AiScriptStudio(skillFixture, http);
+        var request = new AiScriptRequest(AiScriptProvider.Custom, "proxy-model",
+            "sample-api-key", "Vì sao Hoa Lư chuyển về Thăng Long?", 12,
+            "https://proxy.example.com/tenant/v1", AiCustomEndpoint.Responses);
+        var connection = ai.TestConnectionAsync(request).GetAwaiter().GetResult();
+        Check(connection.Contains("Kết nối thành công"), "Custom Responses Test Connection succeeds");
+        var output = ai.GenerateAsync(request, "hoa-lu-custom-responses").GetAwaiter().GetResult();
+        Check(output.VoiceSegments > 5, "Custom Responses generation parsed");
+        Check(customResponses.CallCount == 4 && customResponses.AllRequestsValid,
+            "Custom Responses request schema, bearer token and URL prefix");
+    }
     Console.WriteLine("PASS: all workspace/export smoke assertions.");
 }
 finally
@@ -287,6 +342,68 @@ sealed class FakeAiHandler : HttpMessageHandler
             : System.Text.Json.JsonSerializer.Serialize(new
             {
                 output = new[] { new { content = new[] { new { text = answer } } } }
+            });
+        return new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(response, Encoding.UTF8, "application/json")
+        };
+    }
+}
+
+sealed class FakeCustomHandler : HttpMessageHandler
+{
+    private readonly string _script;
+    private readonly AiCustomEndpoint _endpoint;
+    private readonly bool _authorized;
+    public int CallCount { get; private set; }
+    public bool AllRequestsValid { get; private set; } = true;
+
+    public FakeCustomHandler(string script, AiCustomEndpoint endpoint, bool authorized)
+    {
+        _script = script;
+        _endpoint = endpoint;
+        _authorized = authorized;
+    }
+
+    protected override async Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        CallCount++;
+        var path = request.RequestUri!.AbsolutePath;
+        AllRequestsValid &= _endpoint == AiCustomEndpoint.ChatCompletions
+            ? path == "/v1/chat/completions" : path == "/tenant/v1/responses";
+        AllRequestsValid &= !request.RequestUri.ToString().Contains("sample-api-key");
+        AllRequestsValid &= _authorized
+            ? request.Headers.Authorization?.Scheme == "Bearer" &&
+              request.Headers.Authorization.Parameter == "sample-api-key"
+            : request.Headers.Authorization is null;
+
+        using var json = System.Text.Json.JsonDocument.Parse(
+            await request.Content!.ReadAsStringAsync(cancellationToken));
+        var body = json.RootElement;
+        var prompt = _endpoint == AiCustomEndpoint.ChatCompletions
+            ? body.GetProperty("messages")[0].GetProperty("content").GetString()!
+            : body.GetProperty("input").GetString()!;
+        AllRequestsValid &= body.GetProperty("model").GetString() == (_authorized ? "proxy-model" : "local-coder");
+        AllRequestsValid &= _endpoint == AiCustomEndpoint.ChatCompletions
+            ? body.TryGetProperty("max_tokens", out _) &&
+              !body.TryGetProperty("max_output_tokens", out _)
+            : body.TryGetProperty("max_output_tokens", out _) &&
+              !body.TryGetProperty("max_tokens", out _);
+        var answer = prompt.Contains("NHIỆM VỤ 2:", StringComparison.Ordinal)
+            ? "# Bản đồ\nCẦN KIỂM CHỨNG"
+            : prompt.Contains("NHIỆM VỤ 3:", StringComparison.Ordinal)
+                ? "# Gói YouTube\nCẦN KIỂM CHỨNG" : _script;
+        if (prompt.Contains("single word OK", StringComparison.Ordinal))
+            answer = "OK";
+        var response = _endpoint == AiCustomEndpoint.ChatCompletions
+            ? System.Text.Json.JsonSerializer.Serialize(new
+            {
+                choices = new[] { new { message = new { role = "assistant", content = answer } } }
+            })
+            : System.Text.Json.JsonSerializer.Serialize(new
+            {
+                output = new[] { new { content = new[] { new { type = "output_text", text = answer } } } }
             });
         return new HttpResponseMessage(HttpStatusCode.OK)
         {

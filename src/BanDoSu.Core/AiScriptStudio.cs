@@ -5,11 +5,38 @@ using System.Text.RegularExpressions;
 
 namespace BanDoSu.Core;
 
-public enum AiScriptProvider { OpenAI, Gemini }
+public enum AiScriptProvider { OpenAI, Gemini, Custom }
+
+public enum AiCustomEndpoint { ChatCompletions, Responses }
+
+/// <summary>Normalizes a trusted, user-entered OpenAI-compatible base URI.
+/// The base may end in /v1, /v1/chat/completions or /v1/responses.
+/// Query strings, fragments and embedded credentials are rejected.</summary>
+public static class AiEndpoint
+{
+    public static Uri Resolve(string baseUrl, AiCustomEndpoint endpoint)
+    {
+        if (!Uri.TryCreate(baseUrl?.Trim(), UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) ||
+            !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Query) ||
+            !string.IsNullOrEmpty(uri.Fragment))
+            throw new ArgumentException("Base URL phải là URL http/https hợp lệ, không chứa tài khoản, query hoặc fragment.");
+        var path = uri.AbsolutePath.TrimEnd('/');
+        if (path.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase))
+            path = path[..^"/chat/completions".Length];
+        else if (path.EndsWith("/responses", StringComparison.OrdinalIgnoreCase))
+            path = path[..^"/responses".Length];
+        if (path.Length == 0) path = "/v1";
+        var suffix = endpoint == AiCustomEndpoint.ChatCompletions ? "/chat/completions" : "/responses";
+        var builder = new UriBuilder(uri) { Path = path + suffix, Query = "", Fragment = "" };
+        return builder.Uri;
+    }
+}
 
 public sealed record AiScriptRequest(
     AiScriptProvider Provider, string Model, string ApiKey, string Topic,
-    int Minutes = 12);
+    int Minutes = 12, string? BaseUrl = null,
+    AiCustomEndpoint CustomEndpoint = AiCustomEndpoint.ChatCompletions);
 
 public sealed record AiScriptBundle(
     string Slug, string Script, string Voice, string MapPlan, string Package,
@@ -28,7 +55,10 @@ public sealed class AiScriptStudio
     public AiScriptStudio(string skillRoot, HttpClient? client = null)
     {
         _skillRoot = Path.GetFullPath(skillRoot);
-        _client = client ?? new HttpClient { Timeout = TimeSpan.FromMinutes(8) };
+        // A redirected custom endpoint must not forward script content or tokens.
+        // Injected HttpClient is used by deterministic tests.
+        _client = client ?? new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+        { Timeout = TimeSpan.FromMinutes(8) };
     }
 
     public bool HasSkill =>
@@ -57,8 +87,7 @@ public sealed class AiScriptStudio
             throw new ArgumentException("Vui lòng nhập đề tài lịch sử rõ ràng.");
         if (string.IsNullOrWhiteSpace(request.Model))
             throw new ArgumentException("Chưa chọn tên model AI.");
-        if (string.IsNullOrWhiteSpace(request.ApiKey))
-            throw new ArgumentException("Chưa nhập API key.");
+        ValidateRequest(request);
         if (!HasSkill)
             throw new FileNotFoundException("Thiếu SKILL.md hoặc references/cau-truc.md, dia-danh.md trong " + _skillRoot);
 
@@ -166,40 +195,84 @@ public sealed class AiScriptStudio
             throw new InvalidDataException("Chưa có đủ file 03-BAN-DO và 05-PACKAGE.");
     }
 
-    private async Task<string> CompleteAsync(AiScriptRequest req, string prompt, CancellationToken ct)
+    private static void ValidateRequest(AiScriptRequest req)
     {
-        using var message = new HttpRequestMessage(HttpMethod.Post,
-            req.Provider == AiScriptProvider.OpenAI
-                ? "https://api.openai.com/v1/responses"
-                : $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(req.Model)}:generateContent");
-        message.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        if (req.Provider == AiScriptProvider.OpenAI)
+        if (req.Provider != AiScriptProvider.Custom && string.IsNullOrWhiteSpace(req.ApiKey))
+            throw new ArgumentException("Chưa nhập API key.");
+        if (req.Provider == AiScriptProvider.Custom)
+            _ = AiEndpoint.Resolve(req.BaseUrl ?? "", req.CustomEndpoint);
+    }
+
+    /// <summary>Issues one small real request without generating or saving a script.</summary>
+    public async Task<string> TestConnectionAsync(AiScriptRequest request, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Model))
+            throw new ArgumentException("Chưa nhập tên model.");
+        ValidateRequest(request);
+        var answer = await CompleteAsync(request, "Reply with the single word OK.", ct, maxTokens: 32);
+        if (string.IsNullOrWhiteSpace(answer))
+            throw new InvalidDataException("API không trả nội dung văn bản.");
+        return "Kết nối thành công: " + request.Provider + " / " + request.Model;
+    }
+
+    private async Task<string> CompleteAsync(AiScriptRequest req, string prompt,
+        CancellationToken ct, int maxTokens = 12000)
+    {
+        Uri uri = req.Provider switch
         {
-            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", req.ApiKey.Trim());
-            message.Content = JsonContent(new
-            {
-                model = req.Model.Trim(),
-                input = prompt,
-                max_output_tokens = 12000
-            });
-        }
-        else
+            AiScriptProvider.OpenAI => new("https://api.openai.com/v1/responses"),
+            AiScriptProvider.Gemini => new(
+                $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(req.Model)}:generateContent"),
+            AiScriptProvider.Custom => AiEndpoint.Resolve(req.BaseUrl ?? "", req.CustomEndpoint),
+            _ => throw new NotSupportedException("Nhà cung cấp AI không được hỗ trợ.")
+        };
+        using var message = new HttpRequestMessage(HttpMethod.Post, uri);
+        message.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        if (req.Provider == AiScriptProvider.Gemini)
         {
             message.Headers.Add("x-goog-api-key", req.ApiKey.Trim());
             message.Content = JsonContent(new
             {
                 contents = new[] { new { parts = new[] { new { text = prompt } } } },
-                generationConfig = new { maxOutputTokens = 12000 }
+                generationConfig = new { maxOutputTokens = maxTokens }
             });
         }
+        else
+        {
+            // Custom endpoints may be unauthenticated (e.g., local llama.cpp).
+            if (!string.IsNullOrWhiteSpace(req.ApiKey))
+                message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", req.ApiKey.Trim());
+            if (req.Provider == AiScriptProvider.Custom &&
+                req.CustomEndpoint == AiCustomEndpoint.ChatCompletions)
+            {
+                message.Content = JsonContent(new
+                {
+                    model = req.Model.Trim(),
+                    messages = new[] { new { role = "user", content = prompt } },
+                    max_tokens = maxTokens
+                });
+            }
+            else
+            {
+                message.Content = JsonContent(new
+                {
+                    model = req.Model.Trim(),
+                    input = prompt,
+                    max_output_tokens = maxTokens
+                });
+            }
+        }
+
         using var response = await _client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, ct);
-        var body = await response.Content.ReadAsStringAsync(ct);
+        if ((int)response.StatusCode is >= 300 and < 400)
+            throw new HttpRequestException("Endpoint AI chuyển hướng HTTP. Hãy nhập URL đích trực tiếp.");
         if (!response.IsSuccessStatusCode)
         {
-            // Never log or display full server error bodies: they could contain secrets.
+            // Do not echo response bodies or URLs: either might include a secret.
             throw new HttpRequestException("API AI trả về HTTP " + (int)response.StatusCode +
-                " (" + response.ReasonPhrase + "). Kiểm tra API key, model và hạn mức.");
+                ". Kiểm tra Base URL, API key, model và endpoint.");
         }
+        var body = await response.Content.ReadAsStringAsync(ct);
         using var json = JsonDocument.Parse(body);
         var root = json.RootElement;
         if (req.Provider == AiScriptProvider.Gemini)
@@ -208,22 +281,37 @@ public sealed class AiScriptStudio
                 candidates.GetArrayLength() == 0)
                 throw new InvalidDataException("Gemini không trả nội dung.");
             var parts = candidates[0].GetProperty("content").GetProperty("parts");
-            return string.Join("\n", parts.EnumerateArray().Where(x => x.TryGetProperty("text", out _))
+            return string.Join("\n", parts.EnumerateArray()
+                .Where(x => x.TryGetProperty("text", out _))
                 .Select(x => x.GetProperty("text").GetString()));
         }
-        // Responses API: output[] -> message.content[] -> output_text.text
-        if (root.TryGetProperty("output", out var output))
+        if (req.Provider == AiScriptProvider.Custom &&
+            req.CustomEndpoint == AiCustomEndpoint.ChatCompletions)
+        {
+            if (root.TryGetProperty("choices", out var choices) &&
+                choices.ValueKind == JsonValueKind.Array && choices.GetArrayLength() > 0 &&
+                choices[0].TryGetProperty("message", out var answer) &&
+                answer.TryGetProperty("content", out var content) &&
+                content.ValueKind == JsonValueKind.String)
+                return content.GetString() ?? "";
+            throw new InvalidDataException("API Custom không trả choices[0].message.content.");
+        }
+        if (root.TryGetProperty("output", out var output) &&
+            output.ValueKind == JsonValueKind.Array)
         {
             var chunks = new List<string>();
             foreach (var element in output.EnumerateArray())
             {
-                if (!element.TryGetProperty("content", out var parts)) continue;
+                if (!element.TryGetProperty("content", out var parts) ||
+                    parts.ValueKind != JsonValueKind.Array) continue;
                 foreach (var part in parts.EnumerateArray())
-                    if (part.TryGetProperty("text", out var text)) chunks.Add(text.GetString() ?? "");
+                    if (part.TryGetProperty("text", out var text) &&
+                        text.ValueKind == JsonValueKind.String)
+                        chunks.Add(text.GetString() ?? "");
             }
             if (chunks.Count != 0) return string.Join("\n", chunks);
         }
-        throw new InvalidDataException("OpenAI không trả nội dung văn bản (output_text).");
+        throw new InvalidDataException("API không trả nội dung output_text tương thích Responses.");
     }
 
     private static StringContent JsonContent(object data) =>

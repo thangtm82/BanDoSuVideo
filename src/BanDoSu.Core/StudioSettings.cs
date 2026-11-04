@@ -42,6 +42,11 @@ public sealed class StudioSettings
     public string? LegacyEngineRoot { get; set; }
     public string? LegacyWorkspaceRoot { get; set; }
 
+    // Custom OpenAI-compatible provider: no API key is persisted.
+    public string CustomAiBaseUrl { get; set; } = "http://127.0.0.1:8080/v1";
+    public string CustomAiModel { get; set; } = "";
+    public AiCustomEndpoint CustomAiEndpoint { get; set; } = AiCustomEndpoint.ChatCompletions;
+
     public string NodeExecutable { get; set; } = "node";
     public string PythonExecutable { get; set; } = "python";
     public string FfmpegExecutable { get; set; } = "ffmpeg";
