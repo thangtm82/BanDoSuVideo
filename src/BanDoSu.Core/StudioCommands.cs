@@ -123,6 +123,20 @@ public sealed class StudioCommands
         return Node(ctx.Root, args, log, ct);
     }
 
+    public Task<ProcessResult> DownloadTerrainAsync(string project,
+        Action<string>? log = null, CancellationToken ct = default)
+    {
+        var directory = _projects.ResolveProject(project);
+        var pack = EngineCatalog.GetProjectPack(directory);
+        if (!pack.Equals("terrain", StringComparison.OrdinalIgnoreCase))
+            throw new NotSupportedException("Chỉ project Terrain dùng dữ liệu độ cao DEM.");
+        var ctx = ForProject(project);
+        var tool = Path.Combine(ctx.Root, "packs", "terrain", "dem.py");
+        if (!File.Exists(tool))
+            throw new FileNotFoundException("Engine Terrain thiếu packs/terrain/dem.py.", tool);
+        return Python(ctx.Root, ["packs/terrain/dem.py", "--project", ctx.ProjectPath], log, ct);
+    }
+
     public Task<ProcessResult> MixAsync(string project,
         Action<string>? log = null, CancellationToken ct = default)
     {
