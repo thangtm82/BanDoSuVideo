@@ -468,6 +468,23 @@ try
     var terrainDetected = terrainEnvironment.CheckAsync(DependencyKind.Engine).GetAwaiter().GetResult();
     Check(terrainDetected.Installed, "Environment Manager checks the selected Terrain engine");
 
+    var unpackedExample = Path.Combine(root, "unpacked-sample", "terrain-mau");
+    Directory.CreateDirectory(Path.Combine(unpackedExample, "story"));
+    ProjectFiles.SaveText(Path.Combine(unpackedExample, "config.json"),
+        "{\"title\":\"Sample Terrain\",\"pack\":\"terrain\",\"lang\":\"en\"}");
+    ProjectFiles.SaveText(Path.Combine(unpackedExample, "story", "shots.json"),
+        "{\"worlds\":{},\"shots\":[]}");
+    var importedExample = projects.ImportExternalProjectToWorkspace(unpackedExample);
+    Check(File.Exists(Path.Combine(importedExample, "story", "shots.json")) &&
+          File.Exists(Path.Combine(unpackedExample, "story", "shots.json")),
+        "Existing Terrain sample imported without changing its original");
+    Check(catalog.ResolveForProject(importedExample).Pack == "terrain",
+        "Imported Terrain example finds the installed matching pack");
+    var exampleCollision = false;
+    try { projects.ImportExternalProjectToWorkspace(unpackedExample); }
+    catch (IOException) { exampleCollision = true; }
+    Check(exampleCollision, "Import cannot overwrite an existing workspace project");
+
     Console.WriteLine("PASS: all workspace/export smoke assertions.");
 }
 finally
