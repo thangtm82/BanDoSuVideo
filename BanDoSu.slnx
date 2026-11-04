@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/BanDoSu.Core/BanDoSu.Core.csproj" />
+  <Project Path="src/BanDoSu.Desktop/BanDoSu.Desktop.csproj" />
+</Solution>
