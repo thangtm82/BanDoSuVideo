@@ -48,6 +48,8 @@ public partial class MainWindow : Window
     private void FillSettings()
     {
         StudioRootText.Text = _settings.StudioRoot;
+        WorkspaceRootText.Text = _settings.WorkspaceRoot;
+        ExportRootText.Text = _settings.ExportRoot;
         NodeText.Text = _settings.NodeExecutable;
         PythonText.Text = _settings.PythonExecutable;
         FfmpegText.Text = _settings.FfmpegExecutable;
@@ -134,7 +136,7 @@ public partial class MainWindow : Window
         var slug = NewSlug.Text.Trim();
         if (!Regex.IsMatch(slug, @"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,80}$"))
         { Alert("Tên thư mục dự án chỉ được chứa chữ Latin không dấu, chữ số, dấu gạch nối và gạch dưới."); return; }
-        if (Directory.Exists(_projects.ResolveProject(slug)))
+        if (_projects.Exists(slug))
         { Alert("Dự án đã tồn tại. Hãy chọn tên khác."); return; }
         await ExecuteAsync((log, ct) => _commands.CreateProjectAsync(slug, NewTitle.Text.Trim(),
             NewCaptions.IsChecked == true, log, ct), "Tạo dự án", () =>
@@ -162,6 +164,30 @@ public partial class MainWindow : Window
 
     private void OpenProjectFolderClick(object sender, RoutedEventArgs e)
     { if (HasProject()) OpenPath(_selected!.Directory); }
+
+    private async void MigrateLegacyClick(object sender, RoutedEventArgs e)
+    {
+        if (!HasProject()) return;
+        var selected = _selected!;
+        if (!selected.IsLegacy)
+        {
+            Alert("Dự án này đã nằm trong Workspace.");
+            return;
+        }
+        var confirmation = MessageBox.Show(this,
+            "Sao chép toàn bộ dự án này vào Workspace? Bản gốc trong engine sẽ được giữ lại, không xóa.",
+            "Xác nhận sao chép dự án", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirmation != MessageBoxResult.Yes) return;
+        try
+        {
+            var folder = await Task.Run(() => _projects.CopyLegacyProjectToWorkspace(selected.Name));
+            Log("Đã sao chép dự án cũ sang: " + folder);
+            RefreshProjects();
+            ProjectsList.SelectedItem = _projects.List().FirstOrDefault(p => p.Name == selected.Name);
+        }
+        catch (Exception ex) { Alert("Không thể sao chép dự án: " + ex.Message); }
+    }
+
 
     private void LoadScriptClick(object sender, RoutedEventArgs e)
     {
@@ -348,6 +374,8 @@ public partial class MainWindow : Window
             psi.ArgumentList.Add(_settings.StudioRoot);
             psi.ArgumentList.Add("--project");
             psi.ArgumentList.Add(_selected!.Name);
+            psi.ArgumentList.Add("--project-dir");
+            psi.ArgumentList.Add(_selected.Directory);
             _previewHost = new Process { StartInfo = psi, EnableRaisingEvents = true };
             var ready = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             _previewHost.OutputDataReceived += (_, args) =>
@@ -445,7 +473,7 @@ public partial class MainWindow : Window
     }
 
     private async void ThumbnailRenderClick(object sender, RoutedEventArgs e) => await Render(RenderMode.Thumbnail,
-        "Ảnh bìa", () => OpenPath(Path.Combine(_selected!.Directory, "out")));
+        "Ảnh bìa", () => { OpenPath(Path.Combine(_selected!.Directory, "out")); _ = PublishExportAsync(); });
 
     private async void MixRenderClick(object sender, RoutedEventArgs e)
     {
@@ -453,7 +481,7 @@ public partial class MainWindow : Window
         var video = Path.Combine(_selected!.Directory, "build", "video_silent.mp4");
         if (!File.Exists(video)) { Alert("Hãy hoàn tất dựng video trước khi ghép âm thanh."); return; }
         await ExecuteAsync((log, ct) => _commands.MixAsync(_selected.Name, log, ct), "Ghép âm thanh", () =>
-            OpenPath(Path.Combine(_selected.Directory, "out")));
+            { OpenPath(Path.Combine(_selected.Directory, "out")); _ = PublishExportAsync(); });
     }
 
     private void PlayVideoClick(object sender, RoutedEventArgs e) => VideoPlayer.Play();
@@ -474,18 +502,60 @@ public partial class MainWindow : Window
         if (dlg.ShowDialog(this) == true) StudioRootText.Text = dlg.FolderName;
     }
 
+    private void BrowseWorkspaceClick(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFolderDialog { Title = "Chọn Workspace chứa các dự án" };
+        if (dlg.ShowDialog(this) == true) WorkspaceRootText.Text = dlg.FolderName;
+    }
+
+    private void BrowseExportsClick(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFolderDialog { Title = "Chọn thư mục xuất video" };
+        if (dlg.ShowDialog(this) == true) ExportRootText.Text = dlg.FolderName;
+    }
+
+    private async Task PublishExportAsync()
+    {
+        if (!HasProject()) return;
+        var name = _selected!.Name;
+        try
+        {
+            var destination = await Task.Run(() => new ExportPublisher(_settings).Publish(name));
+            Log("Đã xuất thành phẩm sang: " + destination);
+            RenderStatus.Text = "Đã sao chép sang thư mục xuất";
+        }
+        catch (Exception ex)
+        {
+            Log("Lỗi xuất thành phẩm: " + ex.Message);
+            Alert("Không thể sao chép video sang thư mục xuất: " + ex.Message);
+        }
+    }
+
+    private async void PublishExportClick(object sender, RoutedEventArgs e) => await PublishExportAsync();
+
+    private void OpenExportClick(object sender, RoutedEventArgs e)
+    {
+        if (!HasProject()) return;
+        OpenPath(Path.Combine(_settings.ExportRoot, _selected!.Name));
+    }
+
     private void SaveSettingsClick(object sender, RoutedEventArgs e)
     {
         if (!File.Exists(Path.Combine(StudioRootText.Text.Trim(), "render.mjs")))
         { Alert("Không tìm thấy render.mjs trong thư mục này."); return; }
-        StopPreviewHost();
-        _settings = new StudioSettings
+        var proposed = new StudioSettings
         {
             StudioRoot = StudioRootText.Text.Trim(),
+            WorkspaceRoot = WorkspaceRootText.Text.Trim(),
+            ExportRoot = ExportRootText.Text.Trim(),
             NodeExecutable = NodeText.Text.Trim(),
             PythonExecutable = PythonText.Text.Trim(),
             FfmpegExecutable = FfmpegText.Text.Trim()
         };
+        try { ProjectFiles.ValidateRoots(proposed); }
+        catch (Exception ex) { Alert("Đường dẫn cấu hình không hợp lệ: " + ex.Message); return; }
+        StopPreviewHost();
+        _settings = proposed;
         _settings.Save();
         _projects = new ProjectFiles(_settings);
         _commands = new StudioCommands(_settings);

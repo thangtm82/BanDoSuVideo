@@ -41,7 +41,8 @@
                         <CheckBox Name="NewCaptions" Margin="8" Content="Bật phụ đề karaoke" IsChecked="True"/>
                         <Button Content="Tạo dự án" Click="CreateProjectClick" HorizontalAlignment="Left"/>
                         <Button Content="Mở thư mục dự án" Click="OpenProjectFolderClick" HorizontalAlignment="Left"/>
-                        <TextBlock TextWrapping="Wrap" Margin="6,16,0,0" Text="Dự án được lưu trong thư mục H2 Studio gốc. Các tệp vẫn tương thích với công cụ dựng Node.js/Python."/>
+                        <Button Content="Sao chép dự án cũ vào Workspace" Click="MigrateLegacyClick" HorizontalAlignment="Left"/>
+                        <TextBlock TextWrapping="Wrap" Margin="6,16,0,0" Text="Dự án mới được lưu trong Workspace riêng; dự án cũ trong H2 Studio vẫn có thể mở. Video hoàn chỉnh được sao chép đến thư mục Xuất video trong Cài đặt."/>
                     </StackPanel>
                 </Grid>
             </TabItem>
@@ -154,6 +155,8 @@
                         <Button Content="Phát" Click="PlayVideoClick"/>
                         <Button Content="Tạm dừng" Click="PauseVideoClick"/>
                         <Button Content="Mở thư mục kết quả" Click="OpenOutputClick"/>
+                        <Button Content="Sao chép sang thư mục xuất" Click="PublishExportClick"/>
+                        <Button Content="Mở thư mục xuất" Click="OpenExportClick"/>
                         <TextBlock Name="RenderStatus" Margin="15,0,0,0" VerticalAlignment="Center" Text="Sẵn sàng"/>
                     </StackPanel>
                 </Grid>
@@ -165,6 +168,16 @@
                         <Button DockPanel.Dock="Right" Content="Chọn thư mục" Click="BrowseStudioClick"/>
                         <TextBox Name="StudioRootText"/>
                     </DockPanel>
+                    <TextBlock Margin="12,12,4,4" FontWeight="Bold" Text="Workspace dự án (không nằm trong thư mục engine)"/>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Chọn thư mục" Click="BrowseWorkspaceClick"/>
+                        <TextBox Name="WorkspaceRootText"/>
+                    </DockPanel>
+                    <TextBlock Margin="12,12,4,4" FontWeight="Bold" Text="Thư mục xuất video hoàn chỉnh"/>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Chọn thư mục" Click="BrowseExportsClick"/>
+                        <TextBox Name="ExportRootText"/>
+                    </DockPanel>
                     <TextBlock Margin="4" Text="Tệp chạy Node.js"/>
                     <TextBox Name="NodeText"/>
                     <TextBlock Margin="4" Text="Tệp chạy Python"/>
@@ -175,7 +188,7 @@
                         <Button Content="Lưu cài đặt" Click="SaveSettingsClick"/>
                         <Button Content="Kiểm tra môi trường Studio" Click="DoctorClick"/>
                     </StackPanel>
-                    <TextBlock Margin="4,18" TextWrapping="Wrap" Text="Ứng dụng không đóng gói kèm engine dựng video. Hãy chọn thư mục h2-2d-studio đã hoạt động, bảo đảm Node.js, Playwright Chromium, thư viện Python và FFmpeg được cài đặt."/>
+                    <TextBlock Margin="4,18" TextWrapping="Wrap" Text="Dự án mới được lưu tại Workspace. Dự án cũ dưới engine/projects vẫn có thể sử dụng. Thư mục Xuất video chứa bản sao kết quả sau bước Ghép âm thanh hoặc khi bấm Sao chép sang thư mục xuất. Engine H2 vẫn cần Node.js, Playwright Chromium, Python và FFmpeg."/>
                 </StackPanel>
             </TabItem>
         </TabControl>
