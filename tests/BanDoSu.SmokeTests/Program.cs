@@ -82,6 +82,16 @@ try
     Directory.CreateDirectory(Path.Combine(engine, "tools"));
     var validEngine = environment.CheckAsync(DependencyKind.Engine).GetAwaiter().GetResult();
     Check(validEngine.Installed, "engine detected after setup");
+    if (OperatingSystem.IsWindows())
+    {
+        var commandFile = Path.Combine(root, "verify cmd script.cmd");
+        File.WriteAllText(commandFile, "@echo off\r\necho environment-command-ok\r\n");
+        var commandResult = new StudioProcess().RunAsync(commandFile, Array.Empty<string>(), root)
+            .GetAwaiter().GetResult();
+        Check(commandResult.ExitCode == 0 && commandResult.Output.Contains("environment-command-ok"),
+            "Windows batch commands supported by process runner");
+    }
+
 
     Console.WriteLine("PASS: all workspace/export smoke assertions.");
 }
