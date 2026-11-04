@@ -562,7 +562,8 @@ public partial class MainWindow : Window
                 LoadShots();
                 if (_shots is not null && _selected is not null)
                 {
-                    _shots.SetInitialMapDefaults();
+                    var activePack = EngineCatalog.GetProjectPack(_selected.Directory);
+                    _shots.SetInitialMapDefaults(activePack);
                     ProjectFiles.SaveJson(
                         _projects.FileInProject(_selected.Name, "story", "shots.json"),
                         _shots.Root);
@@ -598,6 +599,7 @@ public partial class MainWindow : Window
         var args = JsonNode.Parse(ArgsEditor.Text);
         MapViewInput.Text = args?["view"]?.ToString() ?? "";
         MapYearInput.Text = args?["year"]?.ToString() ?? "";
+        ShotTemplateInput.Text = _shots.Rows[ShotsGrid.SelectedIndex].Template;
         MapPlaceInput.Text = "";
         var shot = _shots.Rows[ShotsGrid.SelectedIndex];
         MapTime.Value = Math.Clamp(shot.Start, MapTime.Minimum, MapTime.Maximum);
@@ -632,6 +634,9 @@ public partial class MainWindow : Window
             }
             ArgsEditor.Text = obj.ToJsonString(JsonOptions.Pretty);
             _shots.UpdateArgs(ShotsGrid.SelectedIndex, ArgsEditor.Text);
+            if (!string.IsNullOrWhiteSpace(ShotTemplateInput.Text))
+                _shots.UpdateTemplate(ShotsGrid.SelectedIndex, ShotTemplateInput.Text);
+            ShotsGrid.ItemsSource = null; ShotsGrid.ItemsSource = _shots.Rows;
             Log("Đã áp dụng thuộc tính bản đồ cho " + _shots.Rows[ShotsGrid.SelectedIndex].Id);
         }
         catch (Exception ex) { Alert("Không thể áp dụng thuộc tính bản đồ: " + ex.Message); }
@@ -642,10 +647,59 @@ public partial class MainWindow : Window
         if (_shots == null || ShotsGrid.SelectedIndex < 0) { Alert("Hãy chọn một cảnh trước."); return; }
         try
         {
-            _shots.UpdateArgs(ShotsGrid.SelectedIndex, ArgsEditor.Text);
-            Log("Đã áp dụng tham số cho cảnh " + _shots.Rows[ShotsGrid.SelectedIndex].Id);
+            var index = ShotsGrid.SelectedIndex;
+            _shots.UpdateArgs(index, ArgsEditor.Text);
+            if (!string.IsNullOrWhiteSpace(ShotTemplateInput.Text))
+                _shots.UpdateTemplate(index, ShotTemplateInput.Text);
+            ShotsGrid.ItemsSource = null; ShotsGrid.ItemsSource = _shots.Rows;
+            ShotsGrid.SelectedIndex = index;
+            Log("Đã áp dụng tham số và template cho cảnh " + _shots.Rows[index].Id);
         }
         catch (Exception ex) { Alert("JSON của cảnh không hợp lệ: " + ex.Message); }
+    }
+
+    private void EditWorldsClick(object sender, RoutedEventArgs e)
+    {
+        if (!HasProject() || _shots is null)
+        {
+            Alert("Hãy chọn dự án và tải cảnh trước."); return;
+        }
+        var root = _shots.Root;
+        var original = root["worlds"]?.ToJsonString(JsonOptions.Pretty) ?? "{}";
+        var dialog = new Window
+        {
+            Title = "Worlds JSON — " + _selected!.Name,
+            Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Width = 840, Height = 620, MinWidth = 520, MinHeight = 380
+        };
+        var panel = new DockPanel { Margin = new Thickness(10) };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right };
+        var saveButton = new Button { Content = "Áp dụng JSON worlds", Margin = new Thickness(5) };
+        var cancelButton = new Button { Content = "Hủy", Margin = new Thickness(5) };
+        var editor = new TextBox { Text = original, AcceptsReturn = true,
+            TextWrapping = TextWrapping.NoWrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            FontFamily = new System.Windows.Media.FontFamily("Consolas") };
+        saveButton.Click += (_, _) =>
+        {
+            try
+            {
+                var worlds = JsonNode.Parse(editor.Text);
+                if (worlds is not JsonObject)
+                    throw new JsonException("worlds phải là một JSON object.");
+                root["worlds"] = worlds;
+                dialog.DialogResult = true;
+            }
+            catch (Exception ex) { Alert("JSON worlds không hợp lệ: " + ex.Message); }
+        };
+        cancelButton.Click += (_, _) => dialog.DialogResult = false;
+        buttons.Children.Add(saveButton); buttons.Children.Add(cancelButton);
+        DockPanel.SetDock(buttons, Dock.Bottom);
+        panel.Children.Add(buttons); panel.Children.Add(editor);
+        dialog.Content = panel;
+        if (dialog.ShowDialog() == true)
+            Log("Đã cập nhật worlds (chưa lưu). Nhấn Kiểm tra và lưu toàn bộ cảnh để ghi story/shots.json.");
     }
 
     private void SaveShotsClick(object sender, RoutedEventArgs e)
@@ -669,15 +723,16 @@ public partial class MainWindow : Window
         try
         {
             var script = Path.Combine(AppContext.BaseDirectory, "integration", "preview-host.mjs");
+            var activeEngine = _engineCatalog.ResolveForProject(_selected!.Directory);
             var psi = new ProcessStartInfo(_settings.NodeExecutable)
             {
                 UseShellExecute = false, CreateNoWindow = true,
                 RedirectStandardOutput = true, RedirectStandardError = true,
-                WorkingDirectory = _settings.StudioRoot
+                WorkingDirectory = activeEngine.EngineRoot
             };
             psi.ArgumentList.Add(script);
             psi.ArgumentList.Add("--studio");
-            psi.ArgumentList.Add(_settings.StudioRoot);
+            psi.ArgumentList.Add(activeEngine.EngineRoot);
             psi.ArgumentList.Add("--project");
             psi.ArgumentList.Add(_selected!.Name);
             psi.ArgumentList.Add("--project-dir");
