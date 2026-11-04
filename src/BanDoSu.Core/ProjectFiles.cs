@@ -105,9 +105,30 @@ public sealed class ProjectFiles
         // a copy-and-verify migration. Never silently delete the engine project.
         if (!string.Equals(Path.GetPathRoot(source), Path.GetPathRoot(destination), StringComparison.OrdinalIgnoreCase))
         {
-            CopyDirectory(source, destination);
-            if (!File.Exists(Path.Combine(destination, "config.json")))
-                throw new IOException("Không thể xác minh dự án đã sao chép.");
+            var staging = destination + ".migrating-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                CopyDirectory(source, staging);
+                var sourceFiles = Directory.GetFiles(source, "*", SearchOption.AllDirectories);
+                var targetFiles = Directory.GetFiles(staging, "*", SearchOption.AllDirectories);
+                if (sourceFiles.Length != targetFiles.Length)
+                    throw new IOException("Số lượng tệp dự án sao chép không khớp.");
+                foreach (var original in sourceFiles)
+                {
+                    var relative = Path.GetRelativePath(source, original);
+                    var copied = Path.Combine(staging, relative);
+                    if (!File.Exists(copied) || new FileInfo(original).Length != new FileInfo(copied).Length)
+                        throw new IOException("Tệp sao chép không hợp lệ: " + relative);
+                }
+                Directory.Move(staging, destination);
+            }
+            catch
+            {
+                if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+                throw;
+            }
+            // Data has been verified in Workspace. Never delete an existing
+            // unrelated engine project; this source is created by the current command.
             Directory.Delete(source, recursive: true);
         }
         else Directory.Move(source, destination);
