@@ -633,11 +633,13 @@ public partial class MainWindow : Window
                 MapPlaceInput.Text = "";
             }
             ArgsEditor.Text = obj.ToJsonString(JsonOptions.Pretty);
-            _shots.UpdateArgs(ShotsGrid.SelectedIndex, ArgsEditor.Text);
+            var selectedIndex = ShotsGrid.SelectedIndex;
+            _shots.UpdateArgs(selectedIndex, ArgsEditor.Text);
             if (!string.IsNullOrWhiteSpace(ShotTemplateInput.Text))
-                _shots.UpdateTemplate(ShotsGrid.SelectedIndex, ShotTemplateInput.Text);
+                _shots.UpdateTemplate(selectedIndex, ShotTemplateInput.Text);
             ShotsGrid.ItemsSource = null; ShotsGrid.ItemsSource = _shots.Rows;
-            Log("Đã áp dụng thuộc tính bản đồ cho " + _shots.Rows[ShotsGrid.SelectedIndex].Id);
+            ShotsGrid.SelectedIndex = selectedIndex;
+            Log("Đã áp dụng thuộc tính bản đồ cho " + _shots.Rows[selectedIndex].Id);
         }
         catch (Exception ex) { Alert("Không thể áp dụng thuộc tính bản đồ: " + ex.Message); }
     }
@@ -1024,7 +1026,9 @@ public partial class MainWindow : Window
     private async void DoctorClick(object sender, RoutedEventArgs e)
     {
         if (!HasStudio()) return;
-        await ExecuteAsync((log, ct) => _commands.DoctorAsync(log, ct), "Kiểm tra môi trường Studio");
+        var engineRoot = EnvironmentEngineRoot;
+        await ExecuteAsync((log, ct) => _commands.DoctorAsync(log, ct, engineRoot),
+            "Kiểm tra môi trường: " + engineRoot);
     }
 
 
@@ -1346,7 +1350,7 @@ public partial class MainWindow : Window
 
     private async Task<IReadOnlyList<DependencyResult>> CheckEnvironmentAsync(CancellationToken ct)
     {
-        var manager = new EnvironmentManager(_settings);
+        var manager = new EnvironmentManager(_settings, EnvironmentEngineRoot);
         var results = new List<DependencyResult>();
         _environmentRows.Clear();
         var kinds = EnvironmentManager.InstallationOrder;
@@ -1377,7 +1381,7 @@ public partial class MainWindow : Window
         }
         await RunEnvironmentJobAsync(async ct =>
         {
-            var manager = new EnvironmentManager(_settings);
+            var manager = new EnvironmentManager(_settings, EnvironmentEngineRoot);
             var item = await manager.CheckAsync(selected.Kind, ct);
             await InstallEnvironmentAsync([item], ct, allowInstalled: true);
         });
@@ -1418,7 +1422,7 @@ public partial class MainWindow : Window
                 "Xác nhận cài đặt môi trường", MessageBoxButton.YesNo,
                 MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
-        var manager = new EnvironmentManager(_settings);
+        var manager = new EnvironmentManager(_settings, EnvironmentEngineRoot);
         var installedPackages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var failures = new List<string>();
         for (var i = 0; i < selected.Length; i++)
