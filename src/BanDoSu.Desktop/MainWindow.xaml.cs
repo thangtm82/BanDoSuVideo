@@ -704,6 +704,29 @@ public partial class MainWindow : Window
             Log("Đã cập nhật worlds (chưa lưu). Nhấn Kiểm tra và lưu toàn bộ cảnh để ghi story/shots.json.");
     }
 
+    private async void DownloadTerrainClick(object sender, RoutedEventArgs e)
+    {
+        if (!HasProject()) return;
+        if (!EngineCatalog.GetProjectPack(_selected!.Directory)
+            .Equals("terrain", StringComparison.OrdinalIgnoreCase))
+        {
+            Alert("Tải DEM chỉ áp dụng cho dự án Terrain."); return;
+        }
+        var worlds = _shots?.Root["worlds"] as JsonObject;
+        if (worlds is null || worlds.Count == 0)
+        {
+            Alert("Chưa có worlds. Hãy cấu hình world và dem.c [lon,lat] trước."); return;
+        }
+        if (MessageBox.Show(this,
+                "Tải dữ liệu địa hình DEM thực từ nguồn Terrain Tiles cho worlds có dem.c? " +
+                "Tác vụ cần kết nối Internet và có thể tải nhiều tile. " +
+                "Các file đã có sẽ được cập nhật bởi tool của engine.",
+                "Xác nhận tải Terrain DEM", MessageBoxButton.YesNo,
+                MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        await ExecuteAsync((log, ct) => _commands.DownloadTerrainAsync(_selected.Name, log, ct),
+            "Tải DEM Terrain");
+    }
+
     private void SaveShotsClick(object sender, RoutedEventArgs e)
     {
         if (!HasProject() || _shots == null) return;
