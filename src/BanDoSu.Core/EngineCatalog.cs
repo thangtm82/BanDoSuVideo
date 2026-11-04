@@ -183,7 +183,25 @@ public sealed class EngineCatalog
             if (candidates.Count != 1)
                 throw new InvalidDataException("ZIP phải chứa đúng một engine H2 hợp lệ (thư mục kit). " +
                     "Đã tìm thấy: " + candidates.Count);
-            return await ImportAsync(candidates[0], installationId, ct);
+            var installed = await ImportAsync(candidates[0], installationId, ct);
+            // A skill ZIP may ship authoring workflows alongside kit/ (e.g.
+            // skills/kich-ban-terrain). Install them with the selected engine,
+            // never into the bando skill location or another engine version.
+            var skillsSource = Path.Combine(extraction, "skills");
+            if (Directory.Exists(skillsSource))
+            {
+                var skillTargetRoot = Path.Combine(InstallationsRoot, installationId, "skills");
+                foreach (var sourceSkill in Directory.GetDirectories(skillsSource, "kich-ban-*"))
+                {
+                    var skillName = Path.GetFileName(sourceSkill);
+                    if (!SafeId.IsMatch(skillName) ||
+                        !File.Exists(Path.Combine(sourceSkill, "SKILL.md"))) continue;
+                    var destination = Path.Combine(skillTargetRoot, skillName);
+                    if (!Directory.Exists(destination))
+                        CopyFiles(sourceSkill, destination, ct);
+                }
+            }
+            return installed;
         }
         finally
         {
