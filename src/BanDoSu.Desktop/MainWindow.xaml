@@ -42,7 +42,7 @@
                         <Button Content="Tạo dự án" Click="CreateProjectClick" HorizontalAlignment="Left"/>
                         <Button Content="Mở thư mục dự án" Click="OpenProjectFolderClick" HorizontalAlignment="Left"/>
                         <Button Content="Sao chép dự án cũ vào Workspace" Click="MigrateLegacyClick" HorizontalAlignment="Left"/>
-                        <TextBlock TextWrapping="Wrap" Margin="6,16,0,0" Text="Dự án mới được lưu trong Workspace riêng; dự án cũ trong H2 Studio vẫn có thể mở. Video hoàn chỉnh được sao chép đến thư mục Xuất video trong Cài đặt."/>
+                        <TextBlock TextWrapping="Wrap" Margin="6,16,0,0" Text="Bản Portable tạo studio, Projects và Exports cạnh tệp EXE. Dự án cũ vẫn có thể sao chép sang Workspace."/>
                     </StackPanel>
                 </Grid>
             </TabItem>
@@ -163,7 +163,14 @@
             </TabItem>
             <TabItem Header="Cài đặt">
                 <StackPanel Margin="16">
-                    <TextBlock Text="Thư mục gốc H2 Studio (chứa render.mjs)" FontWeight="Bold"/>
+                    <TextBlock Text="Engine H2 (studio cạnh EXE)" FontWeight="Bold"/>
+                    <WrapPanel Margin="0,4,0,8">
+                        <Button Content="Dùng cấu trúc Portable cạnh EXE" Click="UsePortableLayoutClick"/>
+                        <Button Content="Nhập engine H2 vào studio" Click="ImportEngineClick"/>
+                        <Button Content="Mở thư mục Portable" Click="OpenPortableRootClick"/>
+                    </WrapPanel>
+                    <TextBlock x:Name="PortableStatus" Margin="6" TextWrapping="Wrap"
+                               Text="Thư mục studio cần chứa render.mjs, player.html, tools và packs. Chỉ tạo thư mục không đủ để render."/>
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Content="Chọn thư mục" Click="BrowseStudioClick"/>
                         <TextBox Name="StudioRootText"/>
@@ -189,7 +196,7 @@
                         <Button Content="Kiểm tra môi trường Studio" Click="DoctorClick"/>
                         <Button Content="Quản lý / cài đặt môi trường" Click="OpenEnvironmentClick"/>
                     </StackPanel>
-                    <TextBlock Margin="4,18" TextWrapping="Wrap" Text="Dự án mới được lưu tại Workspace. Dự án cũ dưới engine/projects vẫn có thể sử dụng. Thư mục Xuất video chứa bản sao kết quả sau bước Ghép âm thanh hoặc khi bấm Sao chép sang thư mục xuất. Engine H2 vẫn cần Node.js, Playwright Chromium, Python và FFmpeg."/>
+                    <TextBlock Margin="4,18" TextWrapping="Wrap" Text="Bản Portable sử dụng studio/, Projects/ và Exports/ cạnh EXE. Nếu studio chưa có engine, hãy bấm Nhập engine H2 vào studio. Chỉ cài dependencies sau khi import engine thành công. Không cài ứng dụng trong Program Files nếu cần ghi dữ liệu."/>
                 </StackPanel>
             </TabItem>
             <TabItem Header="Quản lý môi trường">

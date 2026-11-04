@@ -20,6 +20,19 @@ jobs:
         run: dotnet run --project tests/BanDoSu.SmokeTests/BanDoSu.SmokeTests.csproj -c Release
       - name: Publish Windows desktop
         run: dotnet publish src/BanDoSu.Desktop/BanDoSu.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o artifacts/BanDoSuDesktop
+      - name: Test portable engine packaging (fixture only)
+        shell: pwsh
+        run: |
+          $fixture = Join-Path $env:RUNNER_TEMP 'h2-fixture'
+          $destination = Join-Path $env:RUNNER_TEMP 'portable-fixture'
+          New-Item -ItemType Directory -Force -Path (Join-Path $fixture 'tools'), (Join-Path $fixture 'packs'), (Join-Path $fixture 'projects'), (Join-Path $fixture 'node_modules') | Out-Null
+          Set-Content -Path (Join-Path $fixture 'render.mjs') -Value '// fixture'
+          Set-Content -Path (Join-Path $fixture 'player.html') -Value '<html></html>'
+          Set-Content -Path (Join-Path $fixture 'tools/doctor.py') -Value '# fixture'
+          .\\tools\\package-portable.ps1 -EngineSource $fixture -Destination $destination
+          if (-not (Test-Path (Join-Path $destination 'studio/render.mjs'))) { throw 'Portable engine missing' }
+          if (Test-Path (Join-Path $destination 'studio/projects')) { throw 'User projects must not be bundled' }
+          if (Test-Path (Join-Path $destination 'studio/node_modules')) { throw 'Node dependencies must not be bundled' }
       - uses: actions/upload-artifact@v4
         with:
           name: BanDoSuStudio-win-x64

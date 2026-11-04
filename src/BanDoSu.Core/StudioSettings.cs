@@ -4,11 +4,44 @@ namespace BanDoSu.Core;
 
 public sealed class StudioSettings
 {
-    public string StudioRoot { get; set; } = @"D:\BanDoSu\h2-2d-studio";
-    // Keep engine separate from user-created projects and published videos.
-    // Existing settings.json files without these fields remain supported.
-    public string WorkspaceRoot { get; set; } = @"D:\BanDoSu\Projects";
-    public string ExportRoot { get; set; } = @"D:\BanDoSu\Exports";
+    // Defaults are computed from the location of the executable. Existing saved
+    // absolute paths remain supported until the user selects Portable mode.
+    public string StudioRoot { get; set; } = new PortableStudioPaths().Engine;
+    public string WorkspaceRoot { get; set; } = new PortableStudioPaths().Projects;
+    public string ExportRoot { get; set; } = new PortableStudioPaths().Exports;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsPortable
+    {
+        get
+        {
+            var paths = new PortableStudioPaths();
+            return SamePath(StudioRoot, paths.Engine) &&
+                SamePath(WorkspaceRoot, paths.Projects) &&
+                SamePath(ExportRoot, paths.Exports);
+        }
+    }
+
+    private static bool SamePath(string a, string b) =>
+        string.Equals(Path.GetFullPath(a).TrimEnd(Path.DirectorySeparatorChar),
+            Path.GetFullPath(b).TrimEnd(Path.DirectorySeparatorChar),
+            StringComparison.OrdinalIgnoreCase);
+
+    public void UsePortablePaths()
+    {
+        var paths = new PortableStudioPaths();
+        if (!SamePath(StudioRoot, paths.Engine) && !string.IsNullOrWhiteSpace(StudioRoot))
+            LegacyEngineRoot = StudioRoot;
+        if (!SamePath(WorkspaceRoot, paths.Projects) && !string.IsNullOrWhiteSpace(WorkspaceRoot))
+            LegacyWorkspaceRoot = WorkspaceRoot;
+        StudioRoot = paths.Engine;
+        WorkspaceRoot = paths.Projects;
+        ExportRoot = paths.Exports;
+    }
+    // Old external engine is remembered for non-destructive migration after switching.
+    public string? LegacyEngineRoot { get; set; }
+    public string? LegacyWorkspaceRoot { get; set; }
+
     public string NodeExecutable { get; set; } = "node";
     public string PythonExecutable { get; set; } = "python";
     public string FfmpegExecutable { get; set; } = "ffmpeg";

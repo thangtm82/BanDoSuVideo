@@ -88,10 +88,10 @@ public sealed class EnvironmentManager
         var name = DisplayName(kind);
         if (kind == DependencyKind.Engine)
         {
-            var valid = File.Exists(Path.Combine(Engine, "render.mjs")) &&
-                Directory.Exists(Path.Combine(Engine, "tools"));
+            var valid = PortableStudioPaths.IsValidEngine(Engine);
             return new(kind, name, valid,
-                valid ? "Đã tìm thấy render.mjs và thư mục tools" : "Chưa tìm thấy engine H2 Studio. Hãy cấu hình thư mục Engine trong Cài đặt.",
+                valid ? "Engine có render.mjs, player.html, tools và packs."
+                    : "studio chưa có engine H2 đầy đủ. Vào Cài đặt → Nhập engine H2 vào studio.",
                 false);
         }
 
