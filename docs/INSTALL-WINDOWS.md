@@ -16,7 +16,15 @@ dotnet build BanDoSu.slnx -c Debug
 dotnet run --project src/BanDoSu.Desktop/BanDoSu.Desktop.csproj
 ```
 
-On first launch, open **Settings**, point to the folder containing `render.mjs`, save and run **Studio doctor**. No need to copy the engine into this repo.
+On first launch, open **Cài đặt** and configure three folders:
+
+| Field | Example | Purpose |
+| --- | --- | --- |
+| H2 Engine | `D:\\BanDoSu\\h2-2d-studio` | Existing `render.mjs`, Node, Python and map packs |
+| Workspace | `D:\\BanDoSu\\Projects` | New projects, including scripts, shots and intermediate builds |
+| Exports | `D:\\BanDoSu\\Exports` | Copies of final files from a project's `out` folder |
+
+These roots must be independent, with neither Workspace nor Exports inside the engine. **Existing projects remain in `<engine>/projects` and are listed alongside new Workspace projects; no automatic migration is performed for old projects.** No need to copy the engine into this repository. Save settings and run Studio doctor.
 
 ## Workflow
 
@@ -49,3 +57,13 @@ dotnet publish src/BanDoSu.Desktop/BanDoSu.Desktop.csproj -c Release -r win-x64 
 ```
 
 The H2 engine remains external, because its map assets and runtime dependencies are large. This deliberately avoids bundling or relicensing third-party assets.
+
+## Path compatibility and operational notes
+
+The upstream H2 scripts generate new projects under `<engine>/projects`. BanDoSu Desktop runs that generator and **moves only the newly created project** into Workspace when generation succeeds. An existing engine project is never moved or deleted by that workflow. A project name already used by either Workspace or the legacy engine location is rejected during creation.
+
+Existing projects are detected automatically and continue using their original path. For new Workspace projects, the CLI receives an **absolute project path** in `--project`, and the preview server receives `--project-dir`. Whether an individual version of the upstream H2 renderer handles absolute project paths correctly must still be tested with your installed engine before relying on production exports.
+
+If engine and workspace are on different drives, the initial project move copies the project to the workspace and removes its temporary engine source only after verification. Keep backups of important projects; projects are not automatically migrated between configured workspaces.
+
+A successful Windows CI build checks the .NET app and core path logic but does not execute the external H2 engine end-to-end.
