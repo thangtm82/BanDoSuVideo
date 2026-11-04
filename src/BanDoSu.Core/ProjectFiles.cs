@@ -214,6 +214,10 @@ public sealed class ProjectFiles
         ValidateName(name);
         ValidateRoots(Settings);
         var destination = InRoot(ProjectsRoot, name);
+        if (destination.Equals(source, StringComparison.OrdinalIgnoreCase) ||
+            destination.StartsWith(source.TrimEnd(Path.DirectorySeparatorChar) +
+                Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            throw new IOException("Không thể nhập dự án từ thư mục cha của Workspace hoặc chính thư mục đích.");
         if (Directory.Exists(destination))
             throw new IOException("Workspace đã có dự án '" + name + "'. Không ghi đè.");
         var staging = destination + ".importing-" + Guid.NewGuid().ToString("N");
@@ -247,9 +251,17 @@ public sealed class ProjectFiles
     {
         Directory.CreateDirectory(target);
         foreach (var file in Directory.GetFiles(source))
+        {
+            if (File.GetAttributes(file).HasFlag(FileAttributes.ReparsePoint))
+                throw new IOException("Dự án nguồn chứa symbolic link/junction không hỗ trợ: " + file);
             File.Copy(file, Path.Combine(target, Path.GetFileName(file)), overwrite: false);
+        }
         foreach (var dir in Directory.GetDirectories(source))
+        {
+            if (File.GetAttributes(dir).HasFlag(FileAttributes.ReparsePoint))
+                throw new IOException("Dự án nguồn chứa symbolic link/junction không hỗ trợ: " + dir);
             CopyDirectory(dir, Path.Combine(target, Path.GetFileName(dir)));
+        }
     }
 
     public static JsonNode ReadJson(string path) => JsonNode.Parse(File.ReadAllText(path)) ?? throw new JsonException("Tệp JSON trống.");
