@@ -14,8 +14,19 @@ public sealed class StudioCommands
     public Task<ProcessResult> RunNodeAsync(IEnumerable<string> arguments, Action<string>? log = null, CancellationToken ct = default)
         => _runner.RunAsync(Settings.NodeExecutable, arguments, Settings.StudioRoot, log, ct);
 
+    // Reuse the private virtual environment prepared by Environment Manager.
+    // If setup was not run, preserve the existing configured Python behavior.
+    private string EffectivePython
+    {
+        get
+        {
+            var virtualPython = Path.Combine(Settings.StudioRoot, ".venv", "Scripts", "python.exe");
+            return File.Exists(virtualPython) ? virtualPython : Settings.PythonExecutable;
+        }
+    }
+
     public Task<ProcessResult> RunPythonAsync(IEnumerable<string> arguments, Action<string>? log = null, CancellationToken ct = default)
-        => _runner.RunAsync(Settings.PythonExecutable, arguments, Settings.StudioRoot, log, ct);
+        => _runner.RunAsync(EffectivePython, arguments, Settings.StudioRoot, log, ct);
 
     public Task<ProcessResult> DoctorAsync(Action<string>? log = null, CancellationToken ct = default)
         => RunPythonAsync(["tools/doctor.py"], log, ct);
