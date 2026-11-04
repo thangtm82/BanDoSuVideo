@@ -43,6 +43,12 @@ try
     Check(restored["shots"]?[0]?["args"]?["view"]?.ToString() == "viet-nam", "camera defaults");
     Check(restored["shots"]?[1]?["args"]?["year"]?.ToString() == "1010", "scene edit");
     Check(projects.List().Count == 2, "new and legacy project discovery");
+    var copiedLegacy = projects.CopyLegacyProjectToWorkspace("legacy");
+    Check(File.Exists(Path.Combine(copiedLegacy, "config.json")), "legacy copied into workspace");
+    Check(File.Exists(legacyConfig), "legacy original retained");
+    Check(projects.ResolveProject("legacy") == copiedLegacy, "workspace copy preferred after migration");
+    Check(projects.List().First(p => p.Name == "legacy").IsLegacy == false, "migrated project listed as workspace");
+
 
     var rejected = false;
     try { projects.ResolveProject("../escape"); } catch (ArgumentException) { rejected = true; }
