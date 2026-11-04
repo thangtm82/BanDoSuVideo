@@ -59,6 +59,7 @@ public partial class MainWindow : Window
         NodeText.Text = _settings.NodeExecutable;
         PythonText.Text = _settings.PythonExecutable;
         FfmpegText.Text = _settings.FfmpegExecutable;
+        RefreshPortableStatus();
     }
 
     private void Log(string text) => Dispatcher.InvokeAsync(() =>
@@ -72,7 +73,7 @@ public partial class MainWindow : Window
 
     private bool HasStudio()
     {
-        if (File.Exists(Path.Combine(_settings.StudioRoot, "render.mjs"))) return true;
+        if (PortableStudioPaths.IsValidEngine(_settings.StudioRoot)) return true;
         Alert("Hãy chọn thư mục H2 Studio đã cài đặt trong Cài đặt (thư mục chứa render.mjs).");
         MainTabs.SelectedIndex = 5;
         return false;
@@ -545,20 +546,94 @@ public partial class MainWindow : Window
         OpenPath(Path.Combine(_settings.ExportRoot, _selected!.Name));
     }
 
+    private void RefreshPortableStatus()
+    {
+        var portable = new PortableStudioPaths();
+        PortableStatus.Text = portable.HasEngine
+            ? "Engine Portable đã sẵn sàng tại " + portable.Engine
+            : "Chưa có engine đầy đủ tại " + portable.Engine +
+              ". Hãy nhập thư mục H2 gốc bằng nút Nhập engine. Tạo thư mục studio rỗng không đủ để dựng video.";
+    }
+
+    private void UsePortableLayoutClick(object sender, RoutedEventArgs e)
+    {
+        var portable = new PortableStudioPaths();
+        StudioRootText.Text = portable.Engine;
+        WorkspaceRootText.Text = portable.Projects;
+        ExportRootText.Text = portable.Exports;
+        RefreshPortableStatus();
+        Log("Đã chọn cấu trúc Portable; nhấn Lưu cài đặt để áp dụng.");
+    }
+
+    private void OpenPortableRootClick(object sender, RoutedEventArgs e)
+        => OpenPath(new PortableStudioPaths().Root);
+
+    private async void ImportEngineClick(object sender, RoutedEventArgs e)
+    {
+        if (_operation != null || _environmentCts != null)
+        {
+            Alert("Đang có tác vụ xử lý; hãy hoàn tất trước khi nhập engine.");
+            return;
+        }
+        var dlg = new OpenFolderDialog { Title = "Chọn thư mục h2-2d-studio gốc (chứa render.mjs)" };
+        if (dlg.ShowDialog(this) != true) return;
+        var paths = new PortableStudioPaths();
+        if (MessageBox.Show(this,
+            "Sao chép mã nguồn và tài nguyên H2 vào:\\n" + paths.Engine +
+            "\\n\\nEngine nguồn không bị xóa. Bỏ qua node_modules, .venv và projects; cần cài thư viện trong Quản lý môi trường.",
+            "Xác nhận nhập engine", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        using var cts = new CancellationTokenSource();
+        _operation = cts;
+        try
+        {
+            RenderStatus.Text = "Đang nhập engine Portable...";
+            await paths.ImportEngineAsync(dlg.FolderName, Log, cts.Token);
+            if (string.IsNullOrWhiteSpace(_settings.LegacyEngineRoot) &&
+                !Path.GetFullPath(dlg.FolderName).Equals(paths.Engine, StringComparison.OrdinalIgnoreCase))
+                _settings.LegacyEngineRoot = dlg.FolderName;
+            _settings.UsePortablePaths();
+            _settings.Save();
+            _projects = new ProjectFiles(_settings);
+            _commands = new StudioCommands(_settings);
+            _selected = null;
+            FillSettings();
+            RefreshProjects();
+            RenderStatus.Text = "Nhập engine Portable thành công";
+            Alert("Đã nhập engine. Tiếp theo mở Quản lý môi trường để cài các dependency còn thiếu.");
+        }
+        catch (OperationCanceledException) { RenderStatus.Text = "Đã hủy nhập engine"; }
+        catch (Exception ex)
+        {
+            RenderStatus.Text = "Nhập engine thất bại";
+            Log("Nhập engine thất bại: " + ex);
+            Alert(ex.Message);
+        }
+        finally { _operation = null; RefreshPortableStatus(); }
+    }
+
     private void SaveSettingsClick(object sender, RoutedEventArgs e)
     {
-        if (!File.Exists(Path.Combine(StudioRootText.Text.Trim(), "render.mjs")))
-        { Alert("Không tìm thấy render.mjs trong thư mục này."); return; }
         var proposed = new StudioSettings
         {
             StudioRoot = StudioRootText.Text.Trim(),
             WorkspaceRoot = WorkspaceRootText.Text.Trim(),
             ExportRoot = ExportRootText.Text.Trim(),
+            LegacyEngineRoot = _settings.LegacyEngineRoot,
             NodeExecutable = NodeText.Text.Trim(),
             PythonExecutable = PythonText.Text.Trim(),
             FfmpegExecutable = FfmpegText.Text.Trim()
         };
-        try { ProjectFiles.ValidateRoots(proposed); }
+        var portablePaths = new PortableStudioPaths();
+        if (!_settings.IsPortable &&
+            Path.GetFullPath(proposed.StudioRoot).Equals(portablePaths.Engine, StringComparison.OrdinalIgnoreCase))
+            proposed.LegacyEngineRoot = _settings.StudioRoot;
+        if (string.IsNullOrWhiteSpace(proposed.StudioRoot) ||
+            string.IsNullOrWhiteSpace(proposed.WorkspaceRoot) ||
+            string.IsNullOrWhiteSpace(proposed.ExportRoot))
+        {
+            Alert("Các đường dẫn không được để trống."); return;
+        }
+                try { ProjectFiles.ValidateRoots(proposed); }
         catch (Exception ex) { Alert("Đường dẫn cấu hình không hợp lệ: " + ex.Message); return; }
         StopPreviewHost();
         _settings = proposed;
@@ -570,6 +645,9 @@ public partial class MainWindow : Window
         _environmentRows.Clear();
         EnvironmentProgressBar.Value = 0;
         EnvironmentStatus.Text = "Cấu hình đã thay đổi. Hãy kiểm tra lại môi trường.";
+        RefreshPortableStatus();
+        if (!File.Exists(Path.Combine(_settings.StudioRoot, "render.mjs")))
+            Log("CẢNH BÁO: Chưa có engine đầy đủ; hãy nhập engine H2 trước khi tạo dự án.");
         Log("Đã lưu cài đặt tại " + StudioSettings.SettingsPath);
     }
 
