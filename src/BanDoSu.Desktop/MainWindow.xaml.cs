@@ -212,7 +212,19 @@ public partial class MainWindow : Window
                 "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         if (File.Exists(shots)) File.Copy(shots, shots + ".backup-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss"), true);
         await ExecuteAsync((log, ct) => _commands.DraftShotsAsync(_selected.Name, log, ct),
-            "Generate draft scenes", LoadShots);
+            "Generate draft scenes", () =>
+            {
+                LoadShots();
+                if (_shots is not null && _selected is not null)
+                {
+                    _shots.SetInitialMapDefaults();
+                    ProjectFiles.SaveJson(
+                        _projects.FileInProject(_selected.Name, "story", "shots.json"),
+                        _shots.Root);
+                    ShotsGrid.ItemsSource = _shots.Rows;
+                    Log("Initialized map templates and first camera view.");
+                }
+            });
     }
 
     private void OpenTimelineClick(object sender, RoutedEventArgs e)
