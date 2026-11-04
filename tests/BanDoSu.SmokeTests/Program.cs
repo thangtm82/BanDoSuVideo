@@ -79,7 +79,9 @@ try
     var missingEngine = environment.CheckAsync(DependencyKind.Engine).GetAwaiter().GetResult();
     Check(!missingEngine.Installed && !missingEngine.CanInstall, "missing engine is not auto-installed");
     ProjectFiles.SaveText(Path.Combine(engine, "render.mjs"), "// smoke");
+    ProjectFiles.SaveText(Path.Combine(engine, "player.html"), "<html></html>");
     Directory.CreateDirectory(Path.Combine(engine, "tools"));
+    Directory.CreateDirectory(Path.Combine(engine, "packs"));
     var validEngine = environment.CheckAsync(DependencyKind.Engine).GetAwaiter().GetResult();
     Check(validEngine.Installed, "engine detected after setup");
     if (OperatingSystem.IsWindows())
