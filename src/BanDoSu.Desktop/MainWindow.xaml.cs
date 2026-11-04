@@ -635,6 +635,14 @@ public partial class MainWindow : Window
     {
         if (_shots == null || ShotsGrid.SelectedIndex < 0)
         { Alert("Hãy chọn một cảnh trước."); return; }
+        if (_selected != null &&
+            !EngineCatalog.GetProjectPack(_selected.Directory).Equals("bando",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            Alert("Các trường view/year/labels nhanh chỉ dùng cho Pack Bản Đồ Sử. " +
+                "Với Terrain, hãy sửa args JSON (world, cam, camFrom, do) và worlds JSON.");
+            return;
+        }
         try
         {
             var obj = JsonNode.Parse(ArgsEditor.Text) as JsonObject ?? new JsonObject();
