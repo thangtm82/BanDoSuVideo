@@ -968,8 +968,26 @@ public partial class MainWindow : Window
     }
 
     private async void CheckRenderClick(object sender, RoutedEventArgs e) => await Render(RenderMode.Check, "Kiểm tra cảnh");
-    private async void SheetRenderClick(object sender, RoutedEventArgs e) => await Render(RenderMode.Sheet, "Bảng ảnh tổng hợp", () =>
-        OpenPath(Path.Combine(_selected!.Directory, "build", "sheets")));
+    private async void SheetRenderClick(object sender, RoutedEventArgs e) =>
+        await Render(RenderMode.Sheet, "Bảng ảnh tổng hợp", () =>
+        {
+            var directory = Path.Combine(_selected!.Directory, "build", "sheets");
+            if (EngineCatalog.GetProjectPack(_selected.Directory)
+                .Equals("terrain", StringComparison.OrdinalIgnoreCase))
+            {
+                var count = _shots?.Shots.Count ?? 0;
+                var findings = TerrainSheetQualityAnalyzer.Analyze(directory, count);
+                if (findings.Count == 0)
+                    Log("Terrain image QC: không có cảnh báo tương phản thấp từ ảnh tổng hợp " +
+                        "(đây không phải AI Vision hoặc xác minh nội dung lịch sử).");
+                else
+                {
+                    Log("Terrain image QC: " + findings.Count + " cảnh báo từ ảnh tổng hợp:");
+                    foreach (var finding in findings) Log("  [IMAGE QC] " + finding);
+                }
+            }
+            OpenPath(directory);
+        });
     private async void PreviewRenderClick(object sender, RoutedEventArgs e) =>
         await Render(RenderMode.Preview, "Xem thử 30 giây", () =>
         {
