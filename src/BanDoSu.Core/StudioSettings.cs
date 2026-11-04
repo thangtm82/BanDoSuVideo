@@ -30,10 +30,15 @@ public sealed class StudioSettings
     public void UsePortablePaths()
     {
         var paths = new PortableStudioPaths();
+        if (!SamePath(StudioRoot, paths.Engine) && !string.IsNullOrWhiteSpace(StudioRoot))
+            LegacyEngineRoot = StudioRoot;
         StudioRoot = paths.Engine;
         WorkspaceRoot = paths.Projects;
         ExportRoot = paths.Exports;
     }
+    // Old external engine is remembered for non-destructive migration after switching.
+    public string? LegacyEngineRoot { get; set; }
+
     public string NodeExecutable { get; set; } = "node";
     public string PythonExecutable { get; set; } = "python";
     public string FfmpegExecutable { get; set; } = "ffmpeg";
