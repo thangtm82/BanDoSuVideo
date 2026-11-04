@@ -77,6 +77,11 @@ public sealed class AiTerrainSceneBuilder
             sử dụng hills mô phỏng nhưng bổ sung thảm thực vật, sông/đường/cụm cư trú chỉ khi có căn cứ kịch bản hoặc là sơ đồ minh họa.
             "args.note" được RENDER THẲNG lên video; KHÔNG ghi cảnh báo kỹ thuật hay chú thích nội bộ vào args.note.
             Không dựng địa danh, sông cổ hoặc kiến trúc lịch sử giả làm dữ liệu khảo cổ chính xác.
+            MỤC TIÊU CHẤT LƯỢNG V3: Mỗi cảnh cần một chủ thể thị giác, các vùng ruộng phải nhỏ, có tỷ lệ hợp lý,
+            không phải vài polygon xanh khổng lồ; các dòng sông cần polyline >= 4 điểm nếu có hình học minh họa có cơ sở,
+            đường đi và sông khác màu, núi có chi tiết đá/cây/thung lũng khi kịch bản yêu cầu.
+            Camera cho mỗi cảnh phải chủ đích: toàn cảnh để định vị, trung cảnh mô tả, cận cảnh điểm nhấn;
+            tránh 6 cảnh liên tiếp quá xa/quá cao. Không bịa tọa độ lịch sử để làm cảnh đẹp.
             Đừng thay đổi ID, thời gian hay lời đọc của cảnh.
             Phản hồi DUY NHẤT một JSON object hoàn chỉnh, không markdown hoặc code fence.
             """;
@@ -91,6 +96,10 @@ public sealed class AiTerrainSceneBuilder
             "woods[{pts,step,tree}], rocks[{p,s} hoặc {pts,n,s}], trees[{p,s}], buildings[{p,w,d,h,roofColor}], " +
             "villages[{p,n,r,size}], texts[{p,t,size}], units[{id,kind,side,p,n}]. " +
             "World phải giàu chi tiết có chủ đích: ít nhất hai lớp cảnh quan ngoài hills/texts/units khi nội dung cho phép; " +
+            "FIELD GEOMETRY: một polygon ruộng không vượt 11% diện tích world, tránh mảng tứ giác neon rất lớn; " +
+            "ưu tiên các ô nhỏ có ranh giới mềm theo cảnh quan. RIVER GEOMETRY: polyline dùng ít nhất 4 điểm " +
+            "để tránh đoạn gấp khúc thô; làm cong tự nhiên không có nghĩa là bịa tuyến sông lịch sử. " +
+            "Không đặt các features ngoài biên world; quy mô nhà/đá/cây cần đủ rõ trong cỡ cảnh. " +
             "bố cục tương phản rõ, không đặt ground gần như trùng màu haze, hạn chế undulate=0 và contours=0 " +
             "trừ khi có lý do trực quan cụ thể. Dùng rivers và khu cư trú khi cảnh nhắc tới sông/kinh đô, " +
             "nhưng chỉ mô phỏng sơ đồ và không bịa hình học lịch sử chính xác. " +
@@ -150,6 +159,8 @@ public sealed class AiTerrainSceneBuilder
                 "Với tpl=tw yêu cầu args.world tham chiếu world đã có, args.cam {c:[x,y],dist,az,el}, " +
                 "và tag/pin tương ứng lời đọc khi cần. KHÔNG đặt ghi chú kỹ thuật ở args.note vì được hiển thị trên hình. " +
             "Hãy để góc camera nhìn rõ cảnh quan và điểm nhấn, đổi góc giữa các cảnh cùng world. " +
+            "Tránh cam.dist > 1.5 lần chiều rộng world nếu chủ thể cần nhìn rõ, tránh cam.el > 72 " +
+            "khi mô tả chiều cao công trình; diễn tiến góc toàn/trung/cận theo mục tiêu từng câu. " +
             "Action do tham chiếu unit có sẵn, " +
                 "không tạo unit ID không tồn tại. Không dùng trường start/end/line trong output.\n" +
                 context + "\n\n03-HINH:\n" + Limit(plan, 19000) +
