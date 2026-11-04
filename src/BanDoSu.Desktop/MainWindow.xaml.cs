@@ -1,6 +1,7 @@
 using BanDoSu.Core;
 using Microsoft.Win32;
 using System.ComponentModel;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
@@ -23,10 +24,15 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _operation;
     private Process? _previewHost;
     private string? _previewUrl;
+    private readonly ObservableCollection<EnvironmentRow> _environmentRows = new();
+    private CancellationTokenSource? _environmentCts;
+    private sealed record EnvironmentRow(DependencyKind Kind, string Name, string Status, string Details);
+
 
     public MainWindow()
     {
         InitializeComponent();
+        EnvironmentGrid.ItemsSource = _environmentRows;
         MapBrowser.NavigationCompleted += async (_, _) =>
         {
             try
@@ -84,7 +90,7 @@ public partial class MainWindow : Window
     private async Task ExecuteAsync(Func<Action<string>, CancellationToken, Task<ProcessResult>> work, string label,
         Action? onSuccess = null)
     {
-        if (_operation != null) { Alert("Đang có tác vụ khác chạy. Hãy hoàn tất hoặc hủy tác vụ đó trước."); return; }
+        if (_operation != null || _environmentCts != null) { Alert("Đang có tác vụ khác chạy. Hãy hoàn tất hoặc hủy tác vụ đó trước."); return; }
         using var cancellation = new CancellationTokenSource();
         _operation = cancellation;
         RenderStatus.Text = label + " đang chạy...";
@@ -561,6 +567,9 @@ public partial class MainWindow : Window
         _commands = new StudioCommands(_settings);
         _selected = null;
         RefreshProjects();
+        _environmentRows.Clear();
+        EnvironmentProgressBar.Value = 0;
+        EnvironmentStatus.Text = "Cấu hình đã thay đổi. Hãy kiểm tra lại môi trường.";
         Log("Đã lưu cài đặt tại " + StudioSettings.SettingsPath);
     }
 
@@ -570,11 +579,179 @@ public partial class MainWindow : Window
         await ExecuteAsync((log, ct) => _commands.DoctorAsync(log, ct), "Kiểm tra môi trường Studio");
     }
 
-    private void CancelClick(object sender, RoutedEventArgs e) => _operation?.Cancel();
+
+    private void OpenEnvironmentClick(object sender, RoutedEventArgs e)
+    {
+        MainTabs.SelectedIndex = 6; // appended after the six existing tabs
+    }
+
+    private void SetEnvironmentBusy(bool busy)
+    {
+        EnvCheckButton.IsEnabled = !busy;
+        EnvInstallSelectedButton.IsEnabled = !busy;
+        EnvInstallMissingButton.IsEnabled = !busy;
+        EnvRepairButton.IsEnabled = !busy;
+        EnvCancelButton.IsEnabled = busy;
+    }
+
+    private async Task RunEnvironmentJobAsync(Func<CancellationToken, Task> operation)
+    {
+        if (_environmentCts != null || _operation != null)
+        {
+            Alert("Đang có tác vụ khác chạy. Hãy chờ hoặc hủy tác vụ hiện tại.");
+            return;
+        }
+        using var cts = new CancellationTokenSource();
+        _environmentCts = cts;
+        SetEnvironmentBusy(true);
+        try
+        {
+            await operation(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            EnvironmentStatus.Text = "Đã hủy thao tác môi trường.";
+            Log("ĐÃ HỦY: quản lý môi trường.");
+        }
+        catch (Exception ex)
+        {
+            EnvironmentStatus.Text = "Thao tác môi trường thất bại.";
+            Log("Lỗi môi trường: " + ex);
+            Alert("Không thể hoàn tất thao tác: " + ex.Message);
+        }
+        finally
+        {
+            _environmentCts = null;
+            SetEnvironmentBusy(false);
+        }
+    }
+
+    private async Task<IReadOnlyList<DependencyResult>> CheckEnvironmentAsync(CancellationToken ct)
+    {
+        var manager = new EnvironmentManager(_settings);
+        var results = new List<DependencyResult>();
+        _environmentRows.Clear();
+        var kinds = EnvironmentManager.InstallationOrder;
+        for (var i = 0; i < kinds.Count; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var kind = kinds[i];
+            EnvironmentStatus.Text = "Đang kiểm tra: " + EnvironmentManager.DisplayName(kind);
+            var item = await manager.CheckAsync(kind, ct);
+            results.Add(item);
+            _environmentRows.Add(new EnvironmentRow(item.Kind, item.Name,
+                item.Installed ? "Đã cài" : "Thiếu / lỗi", item.Details));
+            EnvironmentProgressBar.Value = (i + 1) * 100.0 / kinds.Count;
+        }
+        EnvironmentStatus.Text = $"Kiểm tra hoàn tất: {results.Count(x => x.Installed)}/{results.Count} thành phần đạt.";
+        return results;
+    }
+
+    private async void EnvCheckClick(object sender, RoutedEventArgs e) =>
+        await RunEnvironmentJobAsync(async ct => { await CheckEnvironmentAsync(ct); });
+
+    private async void EnvInstallSelectedClick(object sender, RoutedEventArgs e)
+    {
+        if (EnvironmentGrid.SelectedItem is not EnvironmentRow selected)
+        {
+            Alert("Hãy chọn một thành phần trong danh sách trước.");
+            return;
+        }
+        await RunEnvironmentJobAsync(async ct =>
+        {
+            var manager = new EnvironmentManager(_settings);
+            var item = await manager.CheckAsync(selected.Kind, ct);
+            await InstallEnvironmentAsync([item], ct, allowInstalled: true);
+        });
+    }
+
+    private async void EnvInstallMissingClick(object sender, RoutedEventArgs e) =>
+        await RunEnvironmentJobAsync(async ct =>
+        {
+            var results = await CheckEnvironmentAsync(ct);
+            await InstallEnvironmentAsync(results.Where(x => !x.Installed).ToArray(), ct);
+        });
+
+    private async void EnvRepairClick(object sender, RoutedEventArgs e) =>
+        await RunEnvironmentJobAsync(async ct =>
+        {
+            var results = await CheckEnvironmentAsync(ct);
+            // Repair only missing dependencies. Already installed system runtimes
+            // are never upgraded or replaced without an explicit single-item choice.
+            await InstallEnvironmentAsync(results.Where(x => !x.Installed).ToArray(), ct);
+        });
+
+    private async Task InstallEnvironmentAsync(
+        IReadOnlyList<DependencyResult> candidates, CancellationToken ct, bool allowInstalled = false)
+    {
+        var selected = candidates.Where(x => x.CanInstall && (allowInstalled || !x.Installed)).ToArray();
+        if (selected.Length == 0)
+        {
+            EnvironmentStatus.Text = "Không có thành phần cần cài. Kiểm tra cấu hình engine nếu còn cảnh báo.";
+            return;
+        }
+        var summary = string.Join(Environment.NewLine, selected.Select(x =>
+            "• " + x.Name + (EnvironmentManager.WinGetId(x.Kind) is string id ? " — WinGet: " + id : "")));
+        if (MessageBox.Show(this,
+                "Bạn xác nhận cài đặt/sửa chữa các thành phần sau?" + Environment.NewLine +
+                summary + Environment.NewLine + Environment.NewLine +
+                "Một số bộ cài có thể yêu cầu quyền quản trị hoặc tải dữ liệu từ Internet. " +
+                "Gói hệ thống không tự động bị gỡ hoặc nâng cấp khi kiểm tra.",
+                "Xác nhận cài đặt môi trường", MessageBoxButton.YesNo,
+                MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+
+        var manager = new EnvironmentManager(_settings);
+        var installedPackages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var failures = new List<string>();
+        for (var i = 0; i < selected.Length; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var item = selected[i];
+            var packageId = EnvironmentManager.WinGetId(item.Kind);
+            if (packageId != null && !installedPackages.Add(packageId))
+            {
+                Log("Bỏ qua bộ cài trùng: " + packageId);
+                continue;
+            }
+            EnvironmentStatus.Text = "Đang cài: " + item.Name;
+            EnvironmentProgressBar.Value = i * 100.0 / selected.Length;
+            try
+            {
+                var result = await manager.InstallAsync(item.Kind, Log, ct);
+                if (result.ExitCode != 0)
+                {
+                    failures.Add(item.Name);
+                    Log($"CÀI ĐẶT THẤT BẠI: {item.Name}, mã thoát {result.ExitCode}");
+                }
+                else Log("HOÀN TẤT CÀI ĐẶT: " + item.Name);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                failures.Add(item.Name);
+                Log("Không thể cài " + item.Name + ": " + ex.Message);
+            }
+            EnvironmentProgressBar.Value = (i + 1) * 100.0 / selected.Length;
+        }
+
+        await CheckEnvironmentAsync(ct);
+        EnvironmentStatus.Text = failures.Count == 0
+            ? "Đã chạy xong bộ cài. Nếu runtime mới chưa được nhận diện, hãy khởi động lại ứng dụng."
+            : "Có " + failures.Count + " mục cài không thành công: " + string.Join(", ", failures);
+    }
+
+    private void EnvCancelClick(object sender, RoutedEventArgs e) => _environmentCts?.Cancel();
+
+    private void CancelClick(object sender, RoutedEventArgs e)
+    {
+        _operation?.Cancel();
+        _environmentCts?.Cancel();
+    }
 
     private void OnWindowClosing(object? sender, CancelEventArgs e)
     {
         _operation?.Cancel();
+        _environmentCts?.Cancel();
         StopPreviewHost();
         VideoPlayer.Stop();
     }
