@@ -67,3 +67,29 @@ Existing projects are detected automatically and continue using their original p
 If engine and workspace are on different drives, the initial project move copies the project to the workspace and removes its temporary engine source only after verification. Keep backups of important projects; projects are not automatically migrated between configured workspaces.
 
 A successful Windows CI build checks the .NET app and core path logic but does not execute the external H2 engine end-to-end.
+
+## Quản lý và cài đặt môi trường bằng giao diện
+
+Bản Desktop có tab **Quản lý môi trường** (hoặc nút mở nhanh từ **Cài đặt**).
+
+1. Cấu hình đúng thư mục Engine H2 Studio rồi nhấn **Lưu cài đặt**.
+2. Mở **Quản lý môi trường** và bấm **Kiểm tra tất cả**. Việc kiểm tra chỉ đọc, không tự tải hay cài thứ gì.
+3. Xem phiên bản, trạng thái và chi tiết từng mục: Node.js, npm, Python, FFmpeg, FFprobe, WebView2, gói npm, Playwright Chromium và thư viện Python.
+4. Bấm **Cài mục đã chọn** hoặc **Cài tất cả thành phần thiếu**. Kiểm tra danh sách và **xác nhận** trước khi ứng dụng gọi bộ cài.
+5. Theo dõi nhật ký ở cuối cửa sổ. Có thể dùng nút **Hủy cài đặt** để dừng tiến trình và cây tiến trình con. Lưu ý chương trình cài đặt hệ thống có thể đã thay đổi máy trước khi bị hủy.
+6. Nếu vừa cài Node.js/Python/FFmpeg từ WinGet, **đóng và mở lại ứng dụng** để nhận PATH mới; kiểm tra lại rồi cài các gói trong dự án.
+
+**Cơ chế cài:**
+- Node.js: WinGet ID `OpenJS.NodeJS.LTS` (npm đi kèm)
+- Python: WinGet ID `Python.Python.3.12`
+- FFmpeg + FFprobe: WinGet ID `Gyan.FFmpeg`
+- WebView2: WinGet ID `Microsoft.EdgeWebView2Runtime`
+- Gói Node: `npm ci` nếu có `package-lock.json`, ngược lại `npm install` tại thư mục Engine
+- Chromium: `npx --no-install playwright install chromium`, dùng Playwright đã khai báo trong Engine
+- Gói Python: tạo `<engine>/.venv`, cài `requirements.txt` nếu có; mặc định `numpy scipy soundfile`.
+
+Sau khi đã có `.venv`, các lệnh Python do Desktop gọi sẽ ưu tiên `.venv/Scripts/python.exe`. Trình cài không tự tải engine H2 vì engine là thành phần được cấu hình riêng. Việc kiểm tra WebView2 dựa vào registry; kết quả có thể cần được xác nhận lại nếu máy dùng cấu hình doanh nghiệp đặc biệt.
+
+**An toàn:** Phần mềm chỉ cài khi người dùng xác nhận, không tự chạy WinGet khi khởi động, không tự thay đổi toàn bộ Python/npm toàn hệ thống. WinGet có thể yêu cầu nâng quyền hoặc kết nối mạng. Các gói bên thứ ba phải được cân nhắc nguồn cung cấp và chính sách bảo mật trước khi cài.
+
+CI kiểm thử mã C# và logic phát hiện engine; chưa mô phỏng một máy Windows sạch để chạy toàn bộ cài đặt WinGet hoặc tải Chromium thực tế.
