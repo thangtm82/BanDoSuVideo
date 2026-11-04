@@ -139,6 +139,19 @@ try
     Check(externalConfig.LegacyEngineRoot == engine, "switch remembers old engine");
     var afterSwitch = new ProjectFiles(externalConfig);
     Check(afterSwitch.List().Any(x => x.Name == "legacy" && x.IsLegacy), "old projects remain visible after switch");
+    var previousWorkspace = Path.Combine(root, "previous-workspace");
+    Directory.CreateDirectory(Path.Combine(previousWorkspace, "old-workspace-video"));
+    ProjectFiles.SaveText(Path.Combine(previousWorkspace, "old-workspace-video", "config.json"), "{\"title\":\"Old workspace\"}");
+    var workspaceSwitch = new StudioSettings
+    {
+        StudioRoot = engine, WorkspaceRoot = previousWorkspace, ExportRoot = exports
+    };
+    workspaceSwitch.UsePortablePaths();
+    Check(workspaceSwitch.LegacyWorkspaceRoot == previousWorkspace, "old workspace remembered");
+    var previousFiles = new ProjectFiles(workspaceSwitch);
+    Check(previousFiles.List().Any(x => x.Name == "old-workspace-video" && x.IsLegacy),
+        "previous workspace visible after switching to portable");
+
     var migrated = afterSwitch.CopyLegacyProjectToWorkspace("legacy");
     Check(File.Exists(Path.Combine(migrated, "config.json")), "legacy project copied into portable workspace");
     Check(File.Exists(legacyConfig), "legacy source preserved after portable migration");
