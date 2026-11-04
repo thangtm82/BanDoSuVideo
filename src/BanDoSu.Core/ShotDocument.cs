@@ -34,12 +34,31 @@ public sealed class ShotDocument
         var node = JsonNode.Parse(json);
         if (node is not JsonObject) throw new JsonException("Scene args must be a JSON object.");
         Shots[index]!["args"] = node;
+        // draft_shots.py does not set tpl for narration-only shots.
+        if (string.IsNullOrWhiteSpace(Shots[index]?["tpl"]?.ToString()))
+            Shots[index]!["tpl"] = "map";
     }
 
     public void UpdateLine(int index, string line)
     {
         if (index < 0 || index >= Shots.Count) throw new ArgumentOutOfRangeException(nameof(index));
         Shots[index]!["line"] = line;
+    }
+
+    public void SetInitialMapDefaults()
+    {
+        if (Shots.Count == 0) return;
+        foreach (var shot in Shots)
+        {
+            if (shot is not JsonObject scene) continue;
+            if (string.IsNullOrWhiteSpace(scene["tpl"]?.ToString()))
+                scene["tpl"] = "map";
+            scene["args"] ??= new JsonObject();
+        }
+        var first = (JsonObject)Shots[0]!;
+        var args = (JsonObject)first["args"]!;
+        args["view"] ??= JsonValue.Create("viet-nam");
+        args["fly"] ??= JsonValue.Create(0);
     }
 
     public void Validate()
