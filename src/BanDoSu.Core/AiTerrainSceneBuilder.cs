@@ -77,6 +77,10 @@ public sealed class AiTerrainSceneBuilder
             sử dụng hills mô phỏng nhưng bổ sung thảm thực vật, sông/đường/cụm cư trú chỉ khi có căn cứ kịch bản hoặc là sơ đồ minh họa.
             "args.note" được RENDER THẲNG lên video; KHÔNG ghi cảnh báo kỹ thuật hay chú thích nội bộ vào args.note.
             Không dựng địa danh, sông cổ hoặc kiến trúc lịch sử giả làm dữ liệu khảo cổ chính xác.
+            MỤC TIÊU ĐỒ HỌA V5: dùng địa hình, cây, đá và các lớp nước/đường có ý nghĩa trực quan;
+            tránh lạm dụng polygon ruộng và các cây giống hệt nhau. Chọn ground/grass/haze có
+            độ tương phản tốt, tránh ambient/sun/exposure quá mạnh. Không mô tả kiến trúc hoặc
+            địa hình như bản phục dựng lịch sử chính xác nếu chưa có nguồn xác minh.
             MỤC TIÊU CHẤT LƯỢNG V3: Mỗi cảnh cần một chủ thể thị giác, các vùng ruộng phải nhỏ, có tỷ lệ hợp lý,
             không phải vài polygon xanh khổng lồ; các dòng sông cần polyline >= 4 điểm nếu có hình học minh họa có cơ sở,
             đường đi và sông khác màu, núi có chi tiết đá/cây/thung lũng khi kịch bản yêu cầu.
@@ -140,6 +144,26 @@ public sealed class AiTerrainSceneBuilder
         }
         foreach (var issue in worldIssues)
             progress?.Report("AI Terrain QC [" + issue.Code + "] " + issue.Subject + ": " + issue.Message);
+
+        // Cinematic mode is only activated for the patched H2 engine. Older
+        // imported engine packs keep their previous renderer and world styling.
+        var rendererPath = Path.Combine(engineRoot, "packs", "terrain", "world.js");
+        var supportsCinematic = File.Exists(rendererPath) &&
+            (await File.ReadAllTextAsync(rendererPath, ct))
+                .Contains("V5 optical ruggedness", StringComparison.Ordinal);
+        if (supportsCinematic)
+        {
+            foreach (var node in worlds.Select(entry => entry.Value).OfType<JsonObject>())
+            {
+                node["graphics"] = "cinematic";
+                if (node["terrainDetail"] is null) node["terrainDetail"] = 0.85;
+                if (node["exposure"] is null) node["exposure"] = 1.22;
+            }
+            progress?.Report("AI Terrain v5: đã bật cinematic rendering trên các world mới.");
+        }
+        else
+            progress?.Report("AI Terrain v5: engine hiện tại chưa hỗ trợ cinematic. " +
+                "Nhập H2 Terrain Cinematic v5 để bật vật liệu và ánh sáng nâng cấp.");
 
         var candidate = JsonNode.Parse(original.Root.ToJsonString())!;
         candidate["worlds"] = worlds.DeepClone();
