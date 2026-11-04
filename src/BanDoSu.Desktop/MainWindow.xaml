@@ -228,6 +228,8 @@
                             <WrapPanel>
                                 <TextBlock Text="Khung nhìn" VerticalAlignment="Center" Margin="5"/>
                                 <TextBox Name="MapViewInput" Width="130" ToolTip="Ví dụ mã khung nhìn: bac-bo"/>
+                                <TextBlock Text="Template" VerticalAlignment="Center" Margin="5"/>
+                                <TextBox x:Name="ShotTemplateInput" Width="85" ToolTip="bando: map; terrain: tw hoặc map2d" />
                                 <TextBlock Text="Năm" VerticalAlignment="Center" Margin="5"/>
                                 <TextBox Name="MapYearInput" Width="75"/>
                                 <TextBlock Text="Địa danh" VerticalAlignment="Center" Margin="5"/>
@@ -240,7 +242,7 @@
                                  FontFamily="Consolas" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
                         <Button Grid.Row="2" Content="Áp dụng thay đổi cảnh" HorizontalAlignment="Left" Click="ApplyShotClick"/>
                     </Grid>
-                    <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Margin="5" Text="Pack bản đồ H2 sử dụng các tham số khung nhìn, năm, nhãn, mũi tên và vùng. Cần lưu rồi tải lại để thấy thay đổi."/>
+                    <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Margin="5" TextWrapping="Wrap" Text="Bản đồ 2D: view/year/labels và tpl=map. Terrain: tpl=tw hoặc map2d, tham số cam/camFrom/world/do và worlds ở story/shots.json. Không tự động chuyển đổi cảnh giữa các pack."/>
                 </Grid>
             </TabItem>
             <TabItem Header="Xem trước bản đồ">
@@ -345,6 +347,9 @@
                         <TextBlock Text="Kiểm tra các runtime và thư viện cần thiết. Chỉ cài đặt khi bạn chủ động xác nhận. Việc cài gói hệ thống sử dụng WinGet từ nguồn chính thức; một số thành phần có thể cần quyền quản trị." TextWrapping="Wrap" Margin="5"/>
                     </StackPanel>
                     <WrapPanel Grid.Row="1" Margin="0,8">
+                        <TextBlock Text="Engine cần kiểm tra" VerticalAlignment="Center" Margin="5"/>
+                        <ComboBox x:Name="EnvironmentEngineCombo" DisplayMemberPath="DisplayName" Width="230" Margin="4"/>
+                        <Button Content="Chọn engine theo dự án" Click="EnvSelectProjectEngineClick"/>
                         <Button x:Name="EnvCheckButton" Content="Kiểm tra tất cả" Click="EnvCheckClick"/>
                         <Button x:Name="EnvInstallSelectedButton" Content="Cài mục đã chọn" Click="EnvInstallSelectedClick"/>
                         <Button x:Name="EnvInstallMissingButton" Content="Cài tất cả thành phần thiếu" Click="EnvInstallMissingClick"/>
