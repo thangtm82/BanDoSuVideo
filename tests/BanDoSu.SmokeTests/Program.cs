@@ -161,6 +161,35 @@ try
     Check(File.Exists(Path.Combine(migrated, "config.json")), "legacy project copied into portable workspace");
     Check(File.Exists(legacyConfig), "legacy source preserved after portable migration");
 
+    // npm/npx regression: never resolve a CLI script relative to StudioRoot.
+    var nodeFixture = Path.Combine(root, "node-install");
+    var npmBin = Path.Combine(nodeFixture, "node_modules", "npm", "bin");
+    Directory.CreateDirectory(npmBin);
+    ProjectFiles.SaveText(Path.Combine(nodeFixture, "node.exe"), "stub executable");
+    ProjectFiles.SaveText(Path.Combine(npmBin, "npm-cli.js"), "// stub npm");
+    ProjectFiles.SaveText(Path.Combine(npmBin, "npx-cli.js"), "// stub npx");
+    var isolatedStudio = Path.Combine(root, "studio-npx-regression");
+    Directory.CreateDirectory(Path.Combine(isolatedStudio, "node_modules", "npm", "bin"));
+    var nodeTools = new NodePackageTools(Path.Combine(nodeFixture, "node.exe"), isolatedStudio);
+    Check(nodeTools.ResolveNpmCli() == Path.Combine(npmBin, "npm-cli.js"),
+        "npm entrypoint resolved from Node installation");
+    Check(nodeTools.ResolveNpmCli(true) == Path.Combine(npmBin, "npx-cli.js"),
+        "npx entrypoint resolved from Node installation");
+    Check(!nodeTools.ResolveNpmCli(true).StartsWith(isolatedStudio, StringComparison.OrdinalIgnoreCase),
+        "npx never resolved from H2 studio");
+    var missingPlaywright = false;
+    try { nodeTools.ResolvePlaywrightCli(); }
+    catch (FileNotFoundException) { missingPlaywright = true; }
+    Check(missingPlaywright, "missing local Playwright reports actionable error");
+    ProjectFiles.SaveText(Path.Combine(isolatedStudio, "node_modules", "playwright", "cli.js"), "// stub");
+    Check(nodeTools.ResolvePlaywrightCli() == Path.Combine(isolatedStudio, "node_modules", "playwright", "cli.js"),
+        "Chromium setup invokes engine-installed Playwright");
+    File.Delete(Path.Combine(npmBin, "npx-cli.js"));
+    var missingNpx = false;
+    try { nodeTools.ResolveNpmCli(true); }
+    catch (FileNotFoundException ex) { missingNpx = ex.Message.Contains("sửa chữa/cài lại Node.js LTS"); }
+    Check(missingNpx, "missing npx JS entrypoint produces clear repair guidance");
+
     var skillFixture = Path.Combine(root, "skills", "kich-ban-bandosu");
     Directory.CreateDirectory(Path.Combine(skillFixture, "references"));
     ProjectFiles.SaveText(Path.Combine(skillFixture, "SKILL.md"), "Viết kịch bản Bản Đồ Sử.");
