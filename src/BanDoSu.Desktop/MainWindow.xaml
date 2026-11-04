@@ -1,0 +1,160 @@
+<Window x:Class="BanDoSu.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="BanDoSu Studio Desktop" Height="860" Width="1420" MinWidth="940" MinHeight="650"
+        WindowStartupLocation="CenterScreen" Closing="OnWindowClosing">
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Background="#182B3B" Padding="14">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Foreground="White" FontSize="20" FontWeight="Bold" Text="BanDoSu Studio" VerticalAlignment="Center"/>
+                <TextBlock Foreground="#B5CBD8" FontSize="13" Margin="20,0,0,0" Text="Windows • Existing H2 map engine" VerticalAlignment="Center"/>
+                <TextBlock x:Name="ProjectHeader" Foreground="#F2D19E" Margin="22,0,0,0" VerticalAlignment="Center" Text="No project selected"/>
+            </StackPanel>
+        </Border>
+        <Grid DockPanel.Dock="Bottom" Height="190">
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+            <DockPanel Margin="7,4">
+                <TextBlock Text="Execution log" FontWeight="Bold" VerticalAlignment="Center"/>
+                <Button DockPanel.Dock="Right" Content="Cancel running operation" Click="CancelClick" HorizontalAlignment="Right"/>
+            </DockPanel>
+            <TextBox Grid.Row="1" Name="LogOutput" FontFamily="Consolas" FontSize="12"
+                     IsReadOnly="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                     TextWrapping="NoWrap" AcceptsReturn="True"/>
+        </Grid>
+        <TabControl x:Name="MainTabs" Margin="8">
+            <TabItem Header="Projects">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="320"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock FontSize="17" FontWeight="Bold" Text="Projects" Margin="4"/>
+                        <Button Content="Refresh projects" Click="RefreshProjectsClick"/>
+                        <ListBox Name="ProjectsList" Height="410" Margin="4" DisplayMemberPath="Title" SelectionChanged="ProjectsSelectionChanged"/>
+                        <TextBlock Text="Double-click project or select it once." TextWrapping="Wrap" Margin="5"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="16,0,0,0">
+                        <TextBlock Text="Create a project" FontSize="17" FontWeight="Bold" Margin="4"/>
+                        <TextBlock Text="Project folder name (letters, digits, hyphens)" Margin="4"/>
+                        <TextBox Name="NewSlug" Text="hoa-lu-thang-long"/>
+                        <TextBlock Text="Title" Margin="4"/>
+                        <TextBox Name="NewTitle" Text="Hoa Lu - Thang Long 1010"/>
+                        <CheckBox Name="NewCaptions" Margin="8" Content="Enable karaoke captions" IsChecked="True"/>
+                        <Button Content="Create project" Click="CreateProjectClick" HorizontalAlignment="Left"/>
+                        <Button Content="Open project folder" Click="OpenProjectFolderClick" HorizontalAlignment="Left"/>
+                        <TextBlock TextWrapping="Wrap" Margin="6,16,0,0" Text="Projects stay inside the original H2 Studio folder. Every file remains compatible with the Node/Python renderer."/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Script &amp; Voice">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Open voice TXT" Click="LoadScriptClick"/>
+                        <Button Content="Save voice TXT" Click="SaveScriptClick"/>
+                        <TextBlock Text="Use | between narration segments. Create numbered MP3 files (1.mp3, 2.mp3, ...)." VerticalAlignment="Center" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <TextBox Grid.Row="1" Name="ScriptEditor" FontSize="14" TextWrapping="Wrap" AcceptsReturn="True"
+                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+                    <Grid Grid.Row="2" Margin="4">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <TextBlock Text="Voice MP3 folder" VerticalAlignment="Center"/>
+                        <TextBox Name="VoiceFolder" Grid.Column="1"/>
+                        <Button Grid.Column="2" Content="Browse" Click="BrowseVoiceClick"/>
+                    </Grid>
+                    <StackPanel Grid.Row="3" Orientation="Horizontal">
+                        <Button Content="Validate MP3 count" Click="ValidateVoiceClick"/>
+                        <Button Content="Prepare voice timeline" Click="PrepareVoiceClick"/>
+                        <Button Content="Generate draft shots" Click="DraftShotsClick"/>
+                        <Button Content="Open timeline folder" Click="OpenTimelineClick"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Map Scenes">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="3*"/></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal" Grid.ColumnSpan="2">
+                        <Button Content="Reload shots.json" Click="LoadShotsClick"/>
+                        <Button Content="Validate &amp; save all shots" Click="SaveShotsClick"/>
+                        <TextBlock Text="Select a shot, edit its args JSON, then Apply. Existing extra fields are preserved." VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <DataGrid Name="ShotsGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="ShotsSelectionChanged"
+                              Margin="4" SelectionMode="Single">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="65"/>
+                            <DataGridTextColumn Header="Start" Binding="{Binding Start}" Width="65"/>
+                            <DataGridTextColumn Header="End" Binding="{Binding End}" Width="65"/>
+                            <DataGridTextColumn Header="Template" Binding="{Binding Template}" Width="80"/>
+                            <DataGridTextColumn Header="Narration" Binding="{Binding Line}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <Grid Grid.Row="1" Grid.Column="1" Margin="8,0,0,0">
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <TextBlock Text="Scene args (JSON)" FontSize="16" FontWeight="Bold" Margin="4"/>
+                        <TextBox Grid.Row="1" Name="ArgsEditor" AcceptsReturn="True" TextWrapping="NoWrap"
+                                 FontFamily="Consolas" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+                        <Button Grid.Row="2" Content="Apply scene changes" HorizontalAlignment="Left" Click="ApplyShotClick"/>
+                    </Grid>
+                    <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Margin="5" Text="The original H2 bando pack interprets view, year, labels, arrows and region arguments. Changes are not reflected until saved/reloaded."/>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Live Map">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Start live map" Click="StartLiveClick"/>
+                        <Button Content="Refresh scene data" Click="RefreshLiveClick"/>
+                        <Button Content="Stop live map" Click="StopLiveClick"/>
+                        <TextBlock Name="LiveStatus" VerticalAlignment="Center" Margin="10,0,0,0" Text="Not running"/>
+                    </StackPanel>
+                    <wv2:WebView2 Name="MapBrowser" Grid.Row="1" Margin="4"/>
+                    <DockPanel Grid.Row="2">
+                        <Button Content="Seek" Click="SeekLiveClick" DockPanel.Dock="Right"/>
+                        <Slider Name="MapTime" Minimum="0" Maximum="60" Value="0" Margin="12"/>
+                    </DockPanel>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Render &amp; Preview">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <WrapPanel>
+                        <Button Content="Check scenes" Click="CheckRenderClick"/>
+                        <Button Content="Contact sheet" Click="SheetRenderClick"/>
+                        <Button Content="Preview first 30s" Click="PreviewRenderClick"/>
+                        <Button Content="Full render" Click="FullRenderClick"/>
+                        <Button Content="Mix audio" Click="MixRenderClick"/>
+                        <Button Content="Thumbnail" Click="ThumbnailRenderClick"/>
+                    </WrapPanel>
+                    <MediaElement Name="VideoPlayer" Grid.Row="1" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform"
+                                  MediaFailed="VideoPlayerFailed" Margin="6" />
+                    <StackPanel Grid.Row="2" Orientation="Horizontal">
+                        <Button Content="Play" Click="PlayVideoClick"/>
+                        <Button Content="Pause" Click="PauseVideoClick"/>
+                        <Button Content="Open output directory" Click="OpenOutputClick"/>
+                        <TextBlock Name="RenderStatus" Margin="15,0,0,0" VerticalAlignment="Center" Text="Ready"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Settings">
+                <StackPanel Margin="16">
+                    <TextBlock Text="H2 Studio root (folder containing render.mjs)" FontWeight="Bold"/>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Browse" Click="BrowseStudioClick"/>
+                        <TextBox Name="StudioRootText"/>
+                    </DockPanel>
+                    <TextBlock Margin="4" Text="Node executable"/>
+                    <TextBox Name="NodeText"/>
+                    <TextBlock Margin="4" Text="Python executable"/>
+                    <TextBox Name="PythonText"/>
+                    <TextBlock Margin="4" Text="FFmpeg executable"/>
+                    <TextBox Name="FfmpegText"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Save settings" Click="SaveSettingsClick"/>
+                        <Button Content="Run Studio doctor" Click="DoctorClick"/>
+                    </StackPanel>
+                    <TextBlock Margin="4,18" TextWrapping="Wrap" Text="The existing renderer is not bundled with this repository. Point to your working h2-2d-studio directory. Make sure npm install, playwright chromium, Python dependencies and FFmpeg are installed."/>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

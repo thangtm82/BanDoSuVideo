@@ -1,0 +1,17 @@
+<Application x:Class="BanDoSu.Desktop.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <SolidColorBrush x:Key="PanelBrush" Color="#1C2835"/>
+        <Style TargetType="Button">
+            <Setter Property="Margin" Value="3"/>
+            <Setter Property="Padding" Value="12,7"/>
+            <Setter Property="MinHeight" Value="31"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Margin" Value="4"/>
+            <Setter Property="Padding" Value="6"/>
+        </Style>
+    </Application.Resources>
+</Application>
