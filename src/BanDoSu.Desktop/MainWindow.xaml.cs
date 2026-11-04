@@ -705,6 +705,25 @@ public partial class MainWindow : Window
             endpoint);
     }
 
+    private bool ConfirmCustomEndpoint(AiScriptRequest request)
+    {
+        if (request.Provider != AiScriptProvider.Custom) return true;
+        Uri endpoint;
+        try { endpoint = AiEndpoint.Resolve(request.BaseUrl ?? "", request.CustomEndpoint); }
+        catch (ArgumentException ex) { Alert(ex.Message); return false; }
+        if (endpoint.Scheme == Uri.UriSchemeHttp && !endpoint.IsLoopback)
+        {
+            return MessageBox.Show(this,
+                "Bạn đang kết nối đến API Custom qua HTTP không mã hóa:\n" +
+                endpoint.Host +
+                "\n\nNội dung kịch bản và API key (nếu có) có thể bị đọc trên đường truyền. " +
+                "Nên dùng HTTPS. Bạn có thực sự muốn tiếp tục?",
+                "Cảnh báo kết nối Custom không an toàn",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
+        }
+        return true;
+    }
+
     private void SaveCustomAiPreferences(AiScriptRequest request)
     {
         if (request.Provider != AiScriptProvider.Custom) return;
@@ -723,6 +742,7 @@ public partial class MainWindow : Window
             return;
         }
         var request = BuildAiRequest();
+        if (!ConfirmCustomEndpoint(request)) return;
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
         _aiCts = cts;
         AiTestButton.IsEnabled = false;
@@ -787,6 +807,7 @@ public partial class MainWindow : Window
             return;
         }
         var request = BuildAiRequest();
+        if (!ConfirmCustomEndpoint(request)) return;
         var slug = _selected.Name;
         var skill = AiScriptStudio.ResolveSkillRoot(AppContext.BaseDirectory, _settings.StudioRoot);
         using var cts = new CancellationTokenSource();
