@@ -72,3 +72,28 @@ Mở **Quản lý môi trường**, chọn **Kiểm tra tất cả**, rồi ch�
 - Dự án mới bên ngoài engine dùng đường dẫn tuyệt đối với các lệnh H2; cần kiểm tra end-to-end với bản engine cụ thể trên máy Windows.
 - GitHub Actions kiểm tra build/publish, Core smoke tests và script đóng gói với engine **giả lập**; không tải engine bên ngoài, không chạy WinGet hay Playwright render thực tế.
 - Bản Portable nên được giải nén vào thư mục có quyền ghi (ví dụ `D:\\BanDoSuStudio`), không nên đặt trong `C:\\Program Files`.
+
+## AI Kịch bản — skill kich-ban-bandosu
+
+Tab **AI Kịch bản** đọc skill `kich-ban-bandosu` và hai reference `cau-truc.md`, `dia-danh.md`. Khi build/publish, bản skill gốc từ repo được đóng gói cùng EXE tại `skills/kich-ban-bandosu/`. Nếu engine thực tế đã có `studio/skills/kich-ban-bandosu/` đủ ba tệp, tab ưu tiên dùng bộ skill của engine.
+
+Quy trình:
+
+1. Tạo hoặc chọn dự án ở **Dự án** (cần engine H2 đã cấu hình để tạo dự án).
+2. Vào **AI Kịch bản**, nhập chủ đề và thời lượng 12 hoặc 25 phút.
+3. Chọn **OpenAI** hoặc **Gemini**, nhập tên model mà API key của bạn được phép gọi; nhập API key vào ô mật khẩu. **API key không được lưu vào settings.json và không gửi tới bất kỳ máy chủ nào ngoài API của provider đã chọn.** Mỗi lần gọi API có thể phát sinh phí.
+4. Bấm **Tạo kịch bản bằng AI**. Ứng dụng gọi API lần lượt ba bước để tạo lời đọc, kế hoạch bản đồ, gói YouTube; file 02-VOICE được phân đoạn tại chỗ từ chính lời đọc, mỗi đoạn tối đa 55 chữ và ngăn cách bằng `|`. Có thể bấm **Hủy**.
+5. Xem và chỉnh sửa các tab **01**, **02**, **03**, **05**. Bấm **Lưu 4 file vào dự án** để tạo:
+   - `<Projects>/<slug>/01-SCRIPT-<slug>.txt`
+   - `<Projects>/<slug>/02-VOICE-<slug>.txt`
+   - `<Projects>/<slug>/03-BAN-DO-<slug>.md`
+   - `<Projects>/<slug>/05-PACKAGE-<slug>.md`
+   Nếu tồn tại, tệp cũ được sao lưu với hậu tố `.backup-<UTC timestamp>`.
+6. Bấm **Đưa voice vào dự án** để sao chép `02-VOICE` vào `input/02-VOICE.txt` và mở tab **Kịch bản và giọng đọc**. Bạn vẫn cần tạo `1.mp3`, `2.mp3`... theo thứ tự trước khi chạy `Chuẩn bị giọng đọc`.
+
+**Giới hạn hiện tại:**
+- Không tích hợp web search/grounding trong API AI. AI có thể sinh sai sự kiện, ngày tháng, địa danh, tọa độ hay nguồn; yêu cầu kiểm chứng thủ công trước khi sử dụng video.
+- Bản `03-BAN-DO` chỉ là kế hoạch Markdown, **chưa tự động chuyển thành H2 `story/shots.json`**. Bản `05-PACKAGE` cũng chưa tự động xuất thumbnail.
+- Không tích hợp TTS; đoạn voice được xuất dưới dạng văn bản phân cách `|`, cần tạo MP3 bằng công cụ ngoài.
+- Không lưu API key xuống ổ đĩa; nhập lại khi khởi động lần khác.
+- Nếu model trả bản thảo quá ngắn hoặc bị cắt do giới hạn output, hãy đổi model hoặc chỉnh sửa và chạy lại.
