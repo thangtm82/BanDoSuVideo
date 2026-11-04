@@ -343,6 +343,32 @@ public partial class MainWindow : Window
         StopPreviewHost();
     }
 
+    private void ImportExistingProjectClick(object sender, RoutedEventArgs e)
+    {
+        if (_operation != null || _environmentCts != null || _aiCts != null || _ttsCts != null)
+        {
+            Alert("Đang có tác vụ khác chạy."); return;
+        }
+        var dialog = new OpenFolderDialog {
+            Title = "Chọn dự án H2 gốc (chứa config.json, ví dụ terrain-mau)" };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            var pack = EngineCatalog.GetProjectPack(dialog.FolderName);
+            if (!_engineCatalog.Discover().Any(x => x.Pack.Equals(pack, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException("Chưa cài engine hỗ trợ pack '" + pack +
+                    "'. Hãy nhập ZIP/engine tương ứng trước.");
+            var destination = _projects.ImportExternalProjectToWorkspace(dialog.FolderName);
+            Log("Đã nhập dự án " + pack + " vào " + destination);
+            RefreshProjects();
+            ProjectsList.SelectedItem = _projects.List()
+                .FirstOrDefault(x => x.Name == Path.GetFileName(destination));
+            Alert("Đã nhập dự án '" + Path.GetFileName(destination) +
+                "'. Nên dùng nút Gắn dự án với engine đã chọn để khóa phiên bản renderer.");
+        }
+        catch (Exception ex) { Alert("Không thể nhập dự án: " + ex.Message); }
+    }
+
     private void OpenProjectFolderClick(object sender, RoutedEventArgs e)
     { if (HasProject()) OpenPath(_selected!.Directory); }
 
