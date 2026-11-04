@@ -240,8 +240,15 @@ sealed class FakeAiHandler : HttpMessageHandler
                 request.Headers.Authorization.Parameter == token;
         AllRequestsAuthorized &= header && !request.RequestUri!.ToString().Contains(token);
         var body = await request.Content!.ReadAsStringAsync(cancellationToken);
-        var answer = body.Contains("NHIỆM VỤ 2", StringComparison.Ordinal) ? "# Bản đồ\\nCẦN KIỂM CHỨNG"
-            : body.Contains("NHIỆM VỤ 3", StringComparison.Ordinal) ? "# Gói YouTube\\nCẦN KIỂM CHỨNG"
+        using var parsed = System.Text.Json.JsonDocument.Parse(body);
+        // JSON escapes Vietnamese characters by default. Inspect the actual prompt,
+        // not its raw JSON representation.
+        var prompt = _gemini
+            ? parsed.RootElement.GetProperty("contents")[0].GetProperty("parts")[0]
+                .GetProperty("text").GetString()!
+            : parsed.RootElement.GetProperty("input").GetString()!;
+        var answer = prompt.Contains("NHIỆM VỤ 2:", StringComparison.Ordinal) ? "# Bản đồ\\nCẦN KIỂM CHỨNG"
+            : prompt.Contains("NHIỆM VỤ 3:", StringComparison.Ordinal) ? "# Gói YouTube\\nCẦN KIỂM CHỨNG"
             : _script;
         var response = _gemini
             ? System.Text.Json.JsonSerializer.Serialize(new
