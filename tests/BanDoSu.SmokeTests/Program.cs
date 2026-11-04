@@ -564,6 +564,13 @@ try
     Check(File.ReadAllText(draftPath).Contains("\"worlds\"") &&
           Directory.GetFiles(Path.Combine(aiTerrainProject, "story"), "shots.json.backup-*").Length == 1,
         "AI Terrain writes generated scenes with timestamped backup");
+    var concurrentEditBlocked = false;
+    try { AiTerrainSceneBuilder.SaveWithBackup(aiTerrainProject, candidateTerrain, terrainDraft); }
+    catch (IOException) { concurrentEditBlocked = true; }
+    Check(concurrentEditBlocked &&
+          Directory.GetFiles(Path.Combine(aiTerrainProject, "story"), "shots.json.backup-*").Length == 1,
+        "AI Terrain rejects stale save without a second backup");
+
 
     Task<string> InvalidScene(string prompt, CancellationToken ct) =>
         Task.FromResult(prompt.Contains("NHIỆM VỤ WORLDS")
