@@ -49,6 +49,8 @@ public partial class MainWindow : Window
         _projects = new ProjectFiles(_settings);
         _commands = new StudioCommands(_settings);
         FillSettings();
+        AiCustomBaseUrl.Text = _settings.CustomAiBaseUrl;
+        AiCustomEndpointInput.SelectedIndex = _settings.CustomAiEndpoint == AiCustomEndpoint.Responses ? 1 : 0;
         RefreshProjects();
     }
 
@@ -668,9 +670,90 @@ public partial class MainWindow : Window
 
     private void AiProviderChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (AiModelInput is null || AiProviderInput is null) return;
+        if (AiModelInput is null || AiProviderInput is null ||
+            AiCustomOptions is null || AiKeyInput is null) return;
         var provider = (AiProviderInput.SelectedItem as ComboBoxItem)?.Tag as string;
-        AiModelInput.Text = provider == "Gemini" ? "gemini-2.5-flash" : "gpt-5.5";
+        AiCustomOptions.Visibility = provider == "Custom"
+            ? Visibility.Visible : Visibility.Collapsed;
+        AiModelInput.Text = provider switch
+        {
+            "Gemini" => "gemini-2.5-flash",
+            "Custom" => string.IsNullOrWhiteSpace(_settings.CustomAiModel)
+                ? "your-model-id" : _settings.CustomAiModel,
+            _ => "gpt-5.5"
+        };
+        // Keys are intentionally not carried between providers.
+        AiKeyInput.Clear();
+    }
+
+    private AiScriptRequest BuildAiRequest()
+    {
+        var tag = (AiProviderInput.SelectedItem as ComboBoxItem)?.Tag as string;
+        var provider = tag switch
+        {
+            "Gemini" => AiScriptProvider.Gemini,
+            "Custom" => AiScriptProvider.Custom,
+            _ => AiScriptProvider.OpenAI
+        };
+        var duration = int.TryParse((AiDurationInput.SelectedItem as ComboBoxItem)?.Tag?.ToString(),
+            out var minutes) ? minutes : 12;
+        var endpoint = (AiCustomEndpointInput.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "Responses"
+            ? AiCustomEndpoint.Responses : AiCustomEndpoint.ChatCompletions;
+        return new AiScriptRequest(provider, AiModelInput.Text.Trim(), AiKeyInput.Password,
+            AiTopicInput.Text.Trim(), duration,
+            provider == AiScriptProvider.Custom ? AiCustomBaseUrl.Text.Trim() : null,
+            endpoint);
+    }
+
+    private void SaveCustomAiPreferences(AiScriptRequest request)
+    {
+        if (request.Provider != AiScriptProvider.Custom) return;
+        // Never persist the API key: only base URL, model and endpoint type.
+        _settings.CustomAiBaseUrl = request.BaseUrl ?? "";
+        _settings.CustomAiModel = request.Model;
+        _settings.CustomAiEndpoint = request.CustomEndpoint;
+        _settings.Save();
+    }
+
+    private async void AiTestConnectionClick(object sender, RoutedEventArgs e)
+    {
+        if (_aiCts != null || _operation != null || _environmentCts != null)
+        {
+            Alert("Đang có tác vụ khác chạy. Hãy hoàn tất hoặc hủy trước.");
+            return;
+        }
+        var request = BuildAiRequest();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        _aiCts = cts;
+        AiTestButton.IsEnabled = false;
+        AiRunButton.IsEnabled = false;
+        AiCancelButton.IsEnabled = true;
+        try
+        {
+            var skill = AiScriptStudio.ResolveSkillRoot(AppContext.BaseDirectory, _settings.StudioRoot);
+            var studio = new AiScriptStudio(skill);
+            AiStatus.Text = "Đang thử kết nối đến API Custom...";
+            var result = await studio.TestConnectionAsync(request, cts.Token);
+            SaveCustomAiPreferences(request);
+            AiStatus.Text = result;
+            Log("AI: " + result);
+        }
+        catch (OperationCanceledException)
+        {
+            AiStatus.Text = "Đã hủy hoặc hết thời gian thử kết nối.";
+        }
+        catch (Exception ex)
+        {
+            AiStatus.Text = "Kết nối AI thất bại: " + ex.Message;
+            Log("AI: " + AiStatus.Text);
+        }
+        finally
+        {
+            _aiCts = null;
+            AiTestButton.IsEnabled = true;
+            AiRunButton.IsEnabled = true;
+            AiCancelButton.IsEnabled = false;
+        }
     }
 
     private string AiPath(string slug, string prefix, string ext) =>
@@ -703,12 +786,7 @@ public partial class MainWindow : Window
             Alert("Đang có tác vụ khác chạy, hãy hoàn thành hoặc hủy trước.");
             return;
         }
-        var provider = (AiProviderInput.SelectedItem as ComboBoxItem)?.Tag as string == "Gemini"
-            ? AiScriptProvider.Gemini : AiScriptProvider.OpenAI;
-        var duration = int.TryParse((AiDurationInput.SelectedItem as ComboBoxItem)?.Tag?.ToString(),
-            out var minutes) ? minutes : 12;
-        var request = new AiScriptRequest(provider, AiModelInput.Text.Trim(),
-            AiKeyInput.Password, AiTopicInput.Text.Trim(), duration);
+        var request = BuildAiRequest();
         var slug = _selected.Name;
         var skill = AiScriptStudio.ResolveSkillRoot(AppContext.BaseDirectory, _settings.StudioRoot);
         using var cts = new CancellationTokenSource();
@@ -725,6 +803,7 @@ public partial class MainWindow : Window
                 AiStatus.Text = message;
                 Log("AI: " + message);
             });
+            SaveCustomAiPreferences(request);
             var bundle = await client.GenerateAsync(request, slug, progress, cts.Token);
             if (_selected?.Name != slug)
             {
