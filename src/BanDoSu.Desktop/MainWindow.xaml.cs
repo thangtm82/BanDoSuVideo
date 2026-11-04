@@ -753,6 +753,12 @@ public partial class MainWindow : Window
             ExportRoot = ExportRootText.Text.Trim(),
             LegacyEngineRoot = _settings.LegacyEngineRoot,
             LegacyWorkspaceRoot = _settings.LegacyWorkspaceRoot,
+            // Saving filesystem settings must not erase AI or voice profiles.
+            CustomAiBaseUrl = _settings.CustomAiBaseUrl,
+            CustomAiModel = _settings.CustomAiModel,
+            CustomAiEndpoint = _settings.CustomAiEndpoint,
+            TtsVoiceIds = (_settings.TtsVoiceIds ?? []).ToList(),
+            TtsSelectedVoiceId = _settings.TtsSelectedVoiceId ?? "",
             NodeExecutable = NodeText.Text.Trim(),
             PythonExecutable = PythonText.Text.Trim(),
             FfmpegExecutable = FfmpegText.Text.Trim()
