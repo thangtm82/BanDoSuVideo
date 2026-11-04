@@ -286,6 +286,52 @@ try
         Check(customResponses.CallCount == 4 && customResponses.AllRequestsValid,
             "Custom Responses request schema, bearer token and URL prefix");
     }
+    // TTS preparation works without a provider, but must never generate silent/fake MP3.
+    var ttsPieces = TtsBatch.ParseSegments("Hoa Lư là kinh đô. | Năm 1010 dời đô về Thăng Long.");
+    Check(ttsPieces.Count == 2 && ttsPieces[0].FileName == "1.mp3" &&
+          ttsPieces[1].FileName == "2.mp3", "TTS splits voice into sequential MP3 filenames");
+    Check(ttsPieces[1].Text == "Năm 1010 dời đô về Thăng Long.",
+        "TTS does not change the narrated segment text");
+    var blankSegmentRejected = false;
+    try { TtsBatch.ParseSegments("Đoạn một||Đoạn ba"); }
+    catch (InvalidDataException) { blankSegmentRejected = true; }
+    Check(blankSegmentRejected, "TTS rejects empty voice segments");
+    var missingVoiceRejected = false;
+    try { TtsBatch.RequireVoiceId("  "); }
+    catch (InvalidDataException) { missingVoiceRejected = true; }
+    Check(missingVoiceRejected, "TTS requires voice selection");
+    var ttsOutput = Path.Combine(root, "tts-output");
+    var noProviderRejected = false;
+    try
+    {
+        TtsBatch.GenerateAsync("Một đoạn thử nghiệm.", "voice-a", ttsOutput, null)
+            .GetAwaiter().GetResult();
+    }
+    catch (NotSupportedException) { noProviderRejected = true; }
+    Check(noProviderRejected && !Directory.Exists(ttsOutput),
+        "TTS without API does not create files or folders");
+    var fakeTts = new FakeTtsProvider();
+    var written = TtsBatch.GenerateAsync(
+        "Đoạn thứ nhất. | Đoạn thứ hai.", "voice-a", ttsOutput, fakeTts)
+        .GetAwaiter().GetResult();
+    Check(written == 2 && fakeTts.Calls == 2, "TTS adapter called once per segment");
+    Check(File.Exists(Path.Combine(ttsOutput, "1.mp3")) &&
+          File.Exists(Path.Combine(ttsOutput, "2.mp3")), "TTS produces correctly numbered MP3 paths");
+    Check(!Directory.EnumerateFiles(ttsOutput, "*.tmp").Any(), "TTS temp files cleaned");
+    var overwriteBlocked = false;
+    try { TtsBatch.GenerateAsync("Đoạn khác.", "voice-a", ttsOutput, fakeTts).GetAwaiter().GetResult(); }
+    catch (IOException) { overwriteBlocked = true; }
+    Check(overwriteBlocked, "TTS refuses overwriting previous MP3");
+    var settingsVoices = new StudioSettings
+    {
+        TtsVoiceIds = ["giọng-nam", "giọng-nữ"],
+        TtsSelectedVoiceId = "giọng-nữ"
+    };
+    var restoredVoices = System.Text.Json.JsonSerializer.Deserialize<StudioSettings>(
+        System.Text.Json.JsonSerializer.Serialize(settingsVoices))!;
+    Check(restoredVoices.TtsVoiceIds.SequenceEqual(settingsVoices.TtsVoiceIds) &&
+          restoredVoices.TtsSelectedVoiceId == "giọng-nữ", "TTS voice preferences round-trip");
+
     Console.WriteLine("PASS: all workspace/export smoke assertions.");
 }
 finally
@@ -409,5 +455,18 @@ sealed class FakeCustomHandler : HttpMessageHandler
         {
             Content = new StringContent(response, Encoding.UTF8, "application/json")
         };
+    }
+}
+
+sealed class FakeTtsProvider : ITtsSynthesisProvider
+{
+    public int Calls { get; private set; }
+    public Task<byte[]> SynthesizeMp3Async(string text, string voiceId, CancellationToken cancellationToken)
+    {
+        Calls++;
+        if (voiceId != "voice-a" || string.IsNullOrWhiteSpace(text))
+            throw new InvalidDataException("TTS adapter received incorrect segment data.");
+        // Test fixture: ID3 signature only. Not used for real audio playback.
+        return Task.FromResult(new byte[] { 0x49, 0x44, 0x33, 0x03, 0x00, 0x00 });
     }
 }
