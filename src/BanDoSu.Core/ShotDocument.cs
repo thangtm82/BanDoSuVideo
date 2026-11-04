@@ -35,9 +35,14 @@ public sealed class ShotDocument
         var node = JsonNode.Parse(json);
         if (node is not JsonObject) throw new JsonException("Tham số cảnh phải là một đối tượng JSON.");
         Shots[index]!["args"] = node;
-        // draft_shots.py does not set tpl for narration-only shots.
-        if (string.IsNullOrWhiteSpace(Shots[index]?["tpl"]?.ToString()))
-            Shots[index]!["tpl"] = "map";
+        // Do not silently set a 2D map template on other packs (e.g. terrain tw/map2d).
+    }
+
+    public void UpdateTemplate(int index, string template)
+    {
+        if (index < 0 || index >= Shots.Count) throw new ArgumentOutOfRangeException(nameof(index));
+        if (string.IsNullOrWhiteSpace(template)) throw new ArgumentException("Template cảnh không được để trống.");
+        Shots[index]!["tpl"] = template.Trim();
     }
 
     public void UpdateLine(int index, string line)
@@ -46,8 +51,9 @@ public sealed class ShotDocument
         Shots[index]!["line"] = line;
     }
 
-    public void SetInitialMapDefaults()
+    public void SetInitialMapDefaults(string pack = "bando")
     {
+        if (!pack.Equals("bando", StringComparison.OrdinalIgnoreCase)) return;
         if (Shots.Count == 0) return;
         foreach (var shot in Shots)
         {
