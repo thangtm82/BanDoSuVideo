@@ -263,8 +263,46 @@ public partial class MainWindow : Window
     {
         if (_shots == null || ShotsGrid.SelectedIndex < 0 || ShotsGrid.SelectedIndex >= _shots.Shots.Count) return;
         ArgsEditor.Text = _shots.GetArgsJson(ShotsGrid.SelectedIndex);
+        var args = JsonNode.Parse(ArgsEditor.Text);
+        MapViewInput.Text = args?["view"]?.ToString() ?? "";
+        MapYearInput.Text = args?["year"]?.ToString() ?? "";
+        MapPlaceInput.Text = "";
         var shot = _shots.Rows[ShotsGrid.SelectedIndex];
         MapTime.Value = Math.Clamp(shot.Start, MapTime.Minimum, MapTime.Maximum);
+    }
+
+    private void ApplyMapFieldsClick(object sender, RoutedEventArgs e)
+    {
+        if (_shots == null || ShotsGrid.SelectedIndex < 0)
+        { Alert("Select a scene first."); return; }
+        try
+        {
+            var obj = JsonNode.Parse(ArgsEditor.Text) as JsonObject ?? new JsonObject();
+            if (!string.IsNullOrWhiteSpace(MapViewInput.Text))
+                obj["view"] = MapViewInput.Text.Trim();
+            if (!string.IsNullOrWhiteSpace(MapYearInput.Text))
+                obj["year"] = MapYearInput.Text.Trim();
+            if (!string.IsNullOrWhiteSpace(MapPlaceInput.Text))
+            {
+                var place = MapPlaceInput.Text.Trim();
+                if (obj["labels"] is not JsonArray labels)
+                {
+                    labels = new JsonArray();
+                    obj["labels"] = labels;
+                }
+                labels.Add(new JsonObject
+                {
+                    ["text"] = place,
+                    ["place"] = place,
+                    ["at"] = 0.3
+                });
+                MapPlaceInput.Text = "";
+            }
+            ArgsEditor.Text = obj.ToJsonString(JsonOptions.Pretty);
+            _shots.UpdateArgs(ShotsGrid.SelectedIndex, ArgsEditor.Text);
+            Log("Applied map properties to " + _shots.Rows[ShotsGrid.SelectedIndex].Id);
+        }
+        catch (Exception ex) { Alert("Cannot apply map properties: " + ex.Message); }
     }
 
     private void ApplyShotClick(object sender, RoutedEventArgs e)
