@@ -165,6 +165,30 @@ public partial class MainWindow : Window
     private void OpenProjectFolderClick(object sender, RoutedEventArgs e)
     { if (HasProject()) OpenPath(_selected!.Directory); }
 
+    private async void MigrateLegacyClick(object sender, RoutedEventArgs e)
+    {
+        if (!HasProject()) return;
+        var selected = _selected!;
+        if (!selected.IsLegacy)
+        {
+            Alert("Dự án này đã nằm trong Workspace.");
+            return;
+        }
+        var confirmation = MessageBox.Show(this,
+            "Sao chép toàn bộ dự án này vào Workspace? Bản gốc trong engine sẽ được giữ lại, không xóa.",
+            "Xác nhận sao chép dự án", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirmation != MessageBoxResult.Yes) return;
+        try
+        {
+            var folder = await Task.Run(() => _projects.CopyLegacyProjectToWorkspace(selected.Name));
+            Log("Đã sao chép dự án cũ sang: " + folder);
+            RefreshProjects();
+            ProjectsList.SelectedItem = _projects.List().FirstOrDefault(p => p.Name == selected.Name);
+        }
+        catch (Exception ex) { Alert("Không thể sao chép dự án: " + ex.Message); }
+    }
+
+
     private void LoadScriptClick(object sender, RoutedEventArgs e)
     {
         var dlg = new OpenFileDialog { Filter = "Tệp văn bản (*.txt)|*.txt|Tất cả tệp|*.*" };
