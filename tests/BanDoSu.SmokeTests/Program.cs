@@ -525,6 +525,8 @@ try
             ? """
               {"worlds":{"hills":{"size":[2000,1500],
               "hills":[{"p":[20,20],"r":100,"h":40}],
+              "rivers":[{"pts":[[-400,-100],[50,0],[450,100]],"w":15}],
+              "woods":[{"pts":[[-250,100],[-100,100],[-100,300],[-250,300]],"step":20}],
               "units":[{"id":"blue","side":"blue","kind":"pawn","p":[0,0]}]}}}
               """
             : """
@@ -564,6 +566,34 @@ try
     Check(File.ReadAllText(draftPath).Contains("\"worlds\"") &&
           Directory.GetFiles(Path.Combine(aiTerrainProject, "story"), "shots.json.backup-*").Length == 1,
         "AI Terrain writes generated scenes with timestamped backup");
+    // Static scene-quality audit catches empty maps, malformed geometry and on-screen debug notes.
+    var grayTerrain = JsonNode.Parse("""
+      {"worlds":{"W01":{"size":[1000,800],"ground":"#ebe4cf","haze":"#ede7d8",
+        "hills":[{"p":[0,0],"r":200,"h":30}],"undulate":0,"contours":0}},
+       "shots":[{"id":"s001","start":0,"end":2,"line":"River near the capital",
+         "tpl":"tw","args":{"world":"W01",
+           "cam":{"c":[0,0],"dist":900,"az":0,"el":60},"note":"Terrain schematic"}}]}
+      """)!;
+    var grayIssues = TerrainSceneQuality.Evaluate(grayTerrain);
+    Check(TerrainSceneQuality.HasBlockingIssues(grayIssues) &&
+          grayIssues.Any(i => i.Code == "SCHEMATIC_ONLY") &&
+          grayIssues.Any(i => i.Code == "LOW_CONTRAST") &&
+          grayIssues.Any(i => i.Code == "VISIBLE_NOTE"),
+          "AI Terrain quality detects schematic-only gray map and visible internal note");
+
+    var brokenGeometry = JsonNode.Parse("""
+      {"worlds":{"W01":{"size":[1000,800],"rivers":[{"pts":[[0,0]]}]}},
+       "shots":[]}
+      """)!;
+    Check(TerrainSceneQuality.Evaluate(brokenGeometry)
+        .Any(i => i.Code == "POINTS_INVALID" && i.Blocking),
+        "AI Terrain quality rejects malformed river geometry");
+    Check(!TerrainSceneQuality.HasBlockingIssues(
+          TerrainSceneQuality.Evaluate(candidateTerrain.Root)),
+          "AI Terrain passes quality audit for richly layered world");
+    Check(!File.ReadAllBytes(draftPath).Take(3).SequenceEqual(new byte[] { 0xEF, 0xBB, 0xBF }),
+        "AI Terrain writes shots.json in UTF-8 without BOM");
+
     var concurrentEditBlocked = false;
     try { AiTerrainSceneBuilder.SaveWithBackup(aiTerrainProject, candidateTerrain, terrainDraft); }
     catch (IOException) { concurrentEditBlocked = true; }
