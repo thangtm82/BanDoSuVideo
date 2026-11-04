@@ -221,6 +221,22 @@ public sealed class AiTerrainSceneBuilder
             }
         }
 
+        // Opt-in stylized karst outcrops only where the narration explicitly
+        // describes limestone; do not claim the resulting shape is verified geography.
+        if (supportsCinematic)
+        {
+            foreach (var shot in outputScenes.OfType<JsonObject>())
+            {
+                var narration = shot["line"]?.ToString() ?? "";
+                if (!narration.Contains("đá vôi", StringComparison.OrdinalIgnoreCase) &&
+                    !narration.Contains("limestone", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var worldId = shot["args"]?["world"]?.ToString();
+                if (worldId != null && worlds[worldId] is JsonObject world)
+                    ((JsonObject)candidate["worlds"]![worldId]!)["limestone"] = true;
+            }
+        }
+
         var built = new ShotDocument(candidate);
         built.Validate();
         for (var i = 0; i < ids.Length; i++)
