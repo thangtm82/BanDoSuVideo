@@ -241,6 +241,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
@@ -268,6 +269,7 @@
                         <ComboBox x:Name="AiProviderInput" Grid.Column="5" SelectedIndex="0" SelectionChanged="AiProviderChanged" Margin="3">
                             <ComboBoxItem Content="OpenAI" Tag="OpenAI"/>
                             <ComboBoxItem Content="Gemini" Tag="Gemini"/>
+                            <ComboBoxItem Content="Custom (OpenAI Compatible)" Tag="Custom"/>
                         </ComboBox>
                     </Grid>
                     <Grid Grid.Row="2" Margin="2,0,2,9">
@@ -280,7 +282,7 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="Model" VerticalAlignment="Center" Margin="5"/>
                         <TextBox x:Name="AiModelInput" Grid.Column="1" Text="gpt-5.5" Margin="3"/>
-                        <TextBlock Grid.Column="2" Text="API key (chỉ giữ trong phiên)" VerticalAlignment="Center" Margin="5"/>
+                        <TextBlock Grid.Column="2" Text="API key (Custom: tùy chọn)" VerticalAlignment="Center" Margin="5"/>
                         <PasswordBox x:Name="AiKeyInput" Grid.Column="3" Margin="3"/>
                         <WrapPanel Grid.Column="4" HorizontalAlignment="Right">
                             <Button x:Name="AiRunButton" Content="Tạo kịch bản bằng AI" Click="AiRunClick"/>
@@ -289,7 +291,29 @@
                             <Button Content="Đưa voice vào dự án" Click="AiImportVoiceClick"/>
                         </WrapPanel>
                     </Grid>
-                    <TabControl Grid.Row="3" Margin="4">
+                    <Border x:Name="AiCustomOptions" Grid.Row="3" Visibility="Collapsed"
+                            Margin="4,0,4,8" Padding="7" BorderBrush="#BBBBBB" BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Base URL" VerticalAlignment="Center" Margin="5"/>
+                            <TextBox x:Name="AiCustomBaseUrl" Grid.Column="1" Margin="3"
+                                     Text="http://127.0.0.1:8080/v1" ToolTip="Ví dụ http://127.0.0.1:8080/v1 hoặc https://proxy.example.com/v1"/>
+                            <TextBlock Grid.Column="2" Text="Endpoint" VerticalAlignment="Center" Margin="5"/>
+                            <ComboBox x:Name="AiCustomEndpointInput" Grid.Column="3" SelectedIndex="0" Margin="3">
+                                <ComboBoxItem Content="/v1/chat/completions" Tag="ChatCompletions"/>
+                                <ComboBoxItem Content="/v1/responses" Tag="Responses"/>
+                            </ComboBox>
+                            <Button Grid.Column="4" x:Name="AiTestButton"
+                                    Content="Test Connection" Click="AiTestConnectionClick"/>
+                        </Grid>
+                    </Border>
+                    <TabControl Grid.Row="4" Margin="4">
                         <TabItem Header="01 · Lời thuyết minh">
                             <TextBox x:Name="AiScriptEditor" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontSize="14"/>
                         </TabItem>
@@ -303,7 +327,7 @@
                             <TextBox x:Name="AiPackageEditor" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="12"/>
                         </TabItem>
                     </TabControl>
-                    <StackPanel Grid.Row="4" Margin="4,8">
+                    <StackPanel Grid.Row="5" Margin="4,8">
                         <TextBlock x:Name="AiStatus" TextWrapping="Wrap" Text="Chọn một dự án ở tab Dự án, nhập API key, rồi bấm Tạo kịch bản bằng AI."/>
                         <TextBlock Margin="0,5,0,0" Foreground="#A84B22" TextWrapping="Wrap" Text="Ghi chú: AI hiện không có tính năng tra cứu hoặc xác minh nguồn tự động. Số liệu, nguồn, năm và tọa độ cần người dùng kiểm chứng. API key không được lưu vào settings.json."/>
                     </StackPanel>
