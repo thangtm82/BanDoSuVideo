@@ -210,6 +210,7 @@
                         <Button x:Name="EnvInstallSelectedButton" Content="Cài mục đã chọn" Click="EnvInstallSelectedClick"/>
                         <Button x:Name="EnvInstallMissingButton" Content="Cài tất cả thành phần thiếu" Click="EnvInstallMissingClick"/>
                         <Button x:Name="EnvRepairButton" Content="Kiểm tra và sửa chữa" Click="EnvRepairClick"/>
+                        <Button Content="Chạy kiểm tra engine (doctor)" Click="DoctorClick"/>
                         <Button x:Name="EnvCancelButton" Content="Hủy cài đặt" Click="EnvCancelClick"/>
                     </WrapPanel>
                     <DataGrid x:Name="EnvironmentGrid" Grid.Row="2" AutoGenerateColumns="False"
