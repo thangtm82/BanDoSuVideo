@@ -1,0 +1,63 @@
+name: H2 Historical World 3D CI
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "engines/h2-historical-world/**"
+      - ".github/workflows/historical-world-ci.yml"
+  push:
+    branches: [main, "feature/**"]
+    paths:
+      - "engines/h2-historical-world/**"
+      - ".github/workflows/historical-world-ci.yml"
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engines/h2-historical-world
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JS source and deterministic history tests
+        run: |
+          node --check render.mjs
+          node --check engine/world.mjs
+          node --check engine/player.mjs
+          node --test tests/*.test.mjs
+      - name: Install engine dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install Chromium dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Create sample historical world
+        run: |
+          python3 tools/new_project.py --name sample --title "Historical World CI" --pack historical
+          python3 tools/doctor.py
+      - name: Browser boot and screenshot smoke test
+        run: |
+          node render.mjs --project projects/sample --check --scale 0.25
+          node render.mjs --project projects/sample --thumb --scale 0.25
+          node render.mjs --project projects/sample --sheet --scale 0.25
+          test -s projects/sample/build/thumbnail.png
+          test -s projects/sample/build/sheets/sheet_01.jpg
+      - name: FFmpeg smoke test
+        run: |
+          node render.mjs --project projects/sample --from 0 --to 0.25 --scale 0.25
+          test -s projects/sample/build/preview.mp4
+          ffprobe -v error -select_streams v -show_entries stream=codec_name,width,height -of default=noprint_wrappers=1 projects/sample/build/preview.mp4
+      - name: Bundle importable engine
+        shell: bash
+        working-directory: .
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/h2-historical-bundle/kit
+          tar -C engines/h2-historical-world --exclude='./node_modules' --exclude='./projects' -cf - . | tar -C artifacts/h2-historical-bundle/kit -xf -
+          cd artifacts/h2-historical-bundle
+          zip -qr ../H2-Historical-World-3D.zip kit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: H2-Historical-World-3D-engine
+          path: artifacts/H2-Historical-World-3D.zip
+          if-no-files-found: error
