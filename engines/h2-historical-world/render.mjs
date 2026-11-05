@@ -133,7 +133,8 @@ try{
   }else if(flag('--sheet'))await sheet(info);
   else if(flag('--thumb')){
     await draw(0);
-    const target=path.join(ensureBuild(),'thumbnail.png');
+    const target=path.join(project,'out','thumbnail.png');
+    fs.mkdirSync(path.dirname(target),{recursive:true});
     await page.screenshot({path:target,type:'png'});console.log('Thumbnail: '+target);
   }else{
     const from=Math.max(0,Number(option('--from','0')));
