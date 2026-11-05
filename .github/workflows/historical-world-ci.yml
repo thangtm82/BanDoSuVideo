@@ -42,6 +42,8 @@ jobs:
           node render.mjs --project projects/sample --sheet --scale 0.25
           test -s projects/sample/build/thumbnail.png
           test -s projects/sample/build/sheets/sheet_01.jpg
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: FFmpeg smoke test
         run: |
           node render.mjs --project projects/sample --from 0 --to 0.25 --scale 0.25
