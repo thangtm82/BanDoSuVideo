@@ -6,7 +6,7 @@
   "description": "Historical city epoch timelapse renderer",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "doctor": "node tools/doctor.mjs"
+    "doctor": "python tools/doctor.py"
   },
   "dependencies": {
     "three": "0.169.0",
