@@ -107,6 +107,13 @@ public sealed class EnvironmentManager
                 version is null ? "Chưa phát hiện WebView2 Runtime." : "Phiên bản " + version);
         }
 
+        // Historical World's Python CLI helpers use only the standard library.
+        // Do not ask users to install numpy/scipy/soundfile for this pack.
+        if (kind == DependencyKind.PythonPackages &&
+            File.Exists(Path.Combine(Engine, "packs", "historical", "pack.js")) &&
+            !File.Exists(Path.Combine(Engine, "requirements.txt")))
+            return new(kind, name, true, "Historical World sử dụng thư viện chuẩn Python; không cần cài .venv.", false);
+
         if (kind is DependencyKind.NpmPackages or DependencyKind.PlaywrightChromium or DependencyKind.PythonPackages or DependencyKind.ThreeJs)
         {
             if (!File.Exists(Path.Combine(Engine, "render.mjs")))
