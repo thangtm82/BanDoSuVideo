@@ -512,11 +512,17 @@ try
     ProjectFiles.SaveText(Path.Combine(historicalFixture, "player.html"), "<html></html>");
     ProjectFiles.SaveText(Path.Combine(historicalFixture, "packs", "historical", "pack.js"),
         "export const packId='historical';");
+    ProjectFiles.SaveText(Path.Combine(historicalFixture, "package.json"),
+        """{"dependencies":{"three":"0.169.0"}}""");
     var historicalOptions = catalog.ImportAsync(historicalFixture, "historical-mvp")
         .GetAwaiter().GetResult();
     Check(historicalOptions.Length == 1 && historicalOptions[0].Pack == "historical",
         "Multi-Pack discovers new Historical World 3D engine without editing C# pack catalogs");
     var historicalEnvironment = new EnvironmentManager(settings, historicalOptions[0].EngineRoot);
+    var historicalThree = historicalEnvironment.CheckAsync(DependencyKind.ThreeJs)
+        .GetAwaiter().GetResult();
+    Check(!historicalThree.Installed && historicalThree.CanInstall,
+        "Environment Manager offers Three.js installation for Historical World pack");
     var historicalPython = historicalEnvironment.CheckAsync(DependencyKind.PythonPackages)
         .GetAwaiter().GetResult();
     Check(historicalPython.Installed && !historicalPython.CanInstall,
