@@ -524,7 +524,7 @@ try
     var historicalProject = Path.Combine(workspace, "historical-test");
     Directory.CreateDirectory(historicalProject);
     ProjectFiles.SaveText(Path.Combine(historicalProject, "config.json"),
-        "{\\"title\\":\\"Historical fixture\\",\\"pack\\":\\"historical\\"}");
+        """{"title":"Historical fixture","pack":"historical"}""");
     EngineCatalog.WriteBinding(historicalProject, historicalOptions[0]);
     Check(catalog.ResolveForProject(historicalProject).EngineId == "historical-mvp",
         "Historical project stays bound to its independent renderer");
