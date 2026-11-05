@@ -35,6 +35,7 @@ jobs:
         run: |
           python3 tools/new_project.py --name sample --title "Historical World CI" --pack historical
           python3 tools/doctor.py
+          npm run doctor
       - name: Browser boot and screenshot smoke test
         run: |
           node render.mjs --project projects/sample --check --scale 0.25
