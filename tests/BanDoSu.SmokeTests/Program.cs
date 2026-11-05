@@ -78,7 +78,7 @@ try
     Check(StudioCommands.ProjectArg("legacy") == "projects/legacy", "legacy CLI helper");
     // Environment check is read-only; no installers are run in smoke tests.
     var environment = new EnvironmentManager(settings);
-    Check(EnvironmentManager.InstallationOrder.Count == 10, "environment dependency catalog");
+    Check(EnvironmentManager.InstallationOrder.Count == 11, "environment dependency catalog");
     Check(EnvironmentManager.WinGetId(DependencyKind.Node) == "OpenJS.NodeJS.LTS", "official Node WinGet mapping");
     Check(EnvironmentManager.WinGetId(DependencyKind.PlaywrightChromium) is null, "Playwright installed per project");
     var missingEngine = environment.CheckAsync(DependencyKind.Engine).GetAwaiter().GetResult();
@@ -475,6 +475,34 @@ try
     var terrainEnvironment = new EnvironmentManager(settings, terrainEngine);
     var terrainDetected = terrainEnvironment.CheckAsync(DependencyKind.Engine).GetAwaiter().GetResult();
     Check(terrainDetected.Installed, "Environment Manager checks the selected Terrain engine");
+
+    // Three.js is checked independently because Terrain's browser imports
+    // the physical JS module; npm --depth=0 alone can miss this requirement.
+    var threePkg = Path.Combine(terrainEngine, "package.json");
+    ProjectFiles.SaveText(threePkg, """
+      {"dependencies":{"three":"0.169.0"}}
+      """);
+    var threeCheck = terrainEnvironment.CheckAsync(DependencyKind.ThreeJs)
+        .GetAwaiter().GetResult();
+    Check(!threeCheck.Installed && threeCheck.CanInstall &&
+          threeCheck.Details.Contains("three.module.js"),
+          "Terrain Three.js checker detects missing runtime module");
+    var moduleFile = Path.Combine(terrainEngine, "node_modules", "three", "build", "three.module.js");
+    Directory.CreateDirectory(Path.GetDirectoryName(moduleFile)!);
+    ProjectFiles.SaveText(moduleFile, "export const REVISION='169';");
+    threeCheck = terrainEnvironment.CheckAsync(DependencyKind.ThreeJs)
+        .GetAwaiter().GetResult();
+    Check(threeCheck.Installed, "Terrain Three.js checker detects installed module");
+    File.Delete(moduleFile);
+    ProjectFiles.SaveText(threePkg, """
+      {"dependencies":{"playwright":"1.56.0"}}
+      """);
+    threeCheck = terrainEnvironment.CheckAsync(DependencyKind.ThreeJs)
+        .GetAwaiter().GetResult();
+    Check(!threeCheck.Installed && !threeCheck.CanInstall &&
+          threeCheck.Details.Contains("không khai báo"),
+          "Terrain Three.js checker never installs an arbitrary unpinned version");
+    File.Delete(threePkg);
 
     var unpackedExample = Path.Combine(root, "unpacked-sample", "terrain-mau");
     Directory.CreateDirectory(Path.Combine(unpackedExample, "story"));

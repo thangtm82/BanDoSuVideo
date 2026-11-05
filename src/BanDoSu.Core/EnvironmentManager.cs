@@ -8,7 +8,7 @@ namespace BanDoSu.Core;
 public enum DependencyKind
 {
     Engine, Node, Npm, Python, Ffmpeg, Ffprobe, NpmPackages,
-    PlaywrightChromium, PythonPackages, WebView2
+    PlaywrightChromium, PythonPackages, WebView2, ThreeJs
 }
 
 public sealed record DependencyResult(
@@ -39,7 +39,7 @@ public sealed class EnvironmentManager
         DependencyKind.Engine, DependencyKind.Node, DependencyKind.Npm,
         DependencyKind.Python, DependencyKind.Ffmpeg, DependencyKind.Ffprobe,
         DependencyKind.WebView2, DependencyKind.NpmPackages,
-        DependencyKind.PlaywrightChromium, DependencyKind.PythonPackages
+        DependencyKind.ThreeJs, DependencyKind.PlaywrightChromium, DependencyKind.PythonPackages
     ];
 
     public static string DisplayName(DependencyKind kind) => kind switch
@@ -51,6 +51,7 @@ public sealed class EnvironmentManager
         DependencyKind.Ffmpeg => "FFmpeg",
         DependencyKind.Ffprobe => "FFprobe",
         DependencyKind.NpmPackages => "Các gói npm của engine",
+        DependencyKind.ThreeJs => "Three.js (Terrain 3D)",
         DependencyKind.PlaywrightChromium => "Playwright và Chromium",
         DependencyKind.PythonPackages => "Các thư viện Python trong .venv",
         DependencyKind.WebView2 => "Microsoft WebView2 Runtime",
@@ -106,7 +107,7 @@ public sealed class EnvironmentManager
                 version is null ? "Chưa phát hiện WebView2 Runtime." : "Phiên bản " + version);
         }
 
-        if (kind is DependencyKind.NpmPackages or DependencyKind.PlaywrightChromium or DependencyKind.PythonPackages)
+        if (kind is DependencyKind.NpmPackages or DependencyKind.PlaywrightChromium or DependencyKind.PythonPackages or DependencyKind.ThreeJs)
         {
             if (!File.Exists(Path.Combine(Engine, "render.mjs")))
                 return new(kind, name, false, "Chưa cấu hình engine H2 Studio.", false);
@@ -153,6 +154,27 @@ public sealed class EnvironmentManager
                 {
                     return new(kind, name, false, ex.Message);
                 }
+            case DependencyKind.ThreeJs:
+            {
+                // Terrain dynamically imports /node_modules/three/build/three.module.js.
+                // npm ls alone is not enough: the renderer needs that exact file.
+                var terrain = File.Exists(Path.Combine(Engine, "packs", "terrain", "pack.js"));
+                if (!terrain)
+                    return new(kind, name, true, "Không áp dụng: engine không có pack Terrain.", false);
+                var modulePath = Path.Combine(Engine, "node_modules", "three", "build", "three.module.js");
+                if (File.Exists(modulePath))
+                    return new(kind, name, true, "Đã có " + modulePath);
+                var packagePath = Path.Combine(Engine, "package.json");
+                if (!File.Exists(packagePath))
+                    return new(kind, name, false, "Thiếu package.json; không thể xác định phiên bản Three.js.", false);
+                using var document = JsonDocument.Parse(await File.ReadAllTextAsync(packagePath, cancellationToken));
+                var hasThree = HasNpmDependency(document.RootElement, "three");
+                return new(kind, name, false,
+                    hasThree
+                        ? "Thiếu node_modules/three/build/three.module.js. Chọn Cài đặt để chạy npm ci/install theo package.json của engine."
+                        : "package.json không khai báo three. Cần bổ sung phiên bản tương thích vào engine trước khi cài.",
+                    hasThree);
+            }
             case DependencyKind.PlaywrightChromium:
                 // The same Playwright package used by the engine resolves its browser path.
                 // No downloads or package updates occur during this detection.
@@ -170,6 +192,18 @@ public sealed class EnvironmentManager
                 return FromProcess(kind, name, result);
             default: return new(kind, name, false, "Chưa hỗ trợ.");
         }
+    }
+
+    private static bool HasNpmDependency(JsonElement root, string packageName)
+    {
+        foreach (var section in new[] { "dependencies", "devDependencies", "optionalDependencies" })
+            if (root.TryGetProperty(section, out var group) &&
+                group.ValueKind == JsonValueKind.Object &&
+                group.TryGetProperty(packageName, out var value) &&
+                value.ValueKind == JsonValueKind.String &&
+                !string.IsNullOrWhiteSpace(value.GetString()))
+                return true;
+        return false;
     }
 
     private static DependencyResult FromProcess(DependencyKind kind, string name, ProcessResult? result)
@@ -257,6 +291,29 @@ public sealed class EnvironmentManager
                 var cli = NodeTools.ResolveNpmCli();
                 return await _runner.RunAsync(NodeTools.FindNodeExecutable()!,
                     [cli, verb], Engine, log, cancellationToken);
+            }
+            case DependencyKind.ThreeJs:
+            {
+                if (!File.Exists(Path.Combine(Engine, "packs", "terrain", "pack.js")))
+                    throw new InvalidOperationException("Engine đang chọn không có pack Terrain.");
+                var packagePath = Path.Combine(Engine, "package.json");
+                if (!File.Exists(packagePath))
+                    throw new FileNotFoundException("Engine Terrain thiếu package.json.", packagePath);
+                using var document = JsonDocument.Parse(await File.ReadAllTextAsync(packagePath, cancellationToken));
+                if (!HasNpmDependency(document.RootElement, "three"))
+                    throw new InvalidOperationException(
+                        "Engine chưa khai báo phiên bản three trong package.json. Không tự cài phiên bản latest.");
+                var cli = NodeTools.ResolveNpmCli();
+                var verb = File.Exists(Path.Combine(Engine, "package-lock.json")) ? "ci" : "install";
+                log?.Invoke("Cài Three.js theo package.json của engine bằng npm " + verb + " tại " + Engine);
+                var result = await _runner.RunAsync(NodeTools.FindNodeExecutable()!,
+                    [cli, verb], Engine, log, cancellationToken);
+                if (result.ExitCode != 0) return result;
+                var verify = await CheckAsync(DependencyKind.ThreeJs, cancellationToken);
+                if (!verify.Installed)
+                    throw new IOException("npm hoàn thành nhưng Three.js vẫn thiếu: " + verify.Details);
+                log?.Invoke("Đã xác minh Three.js: " + verify.Details);
+                return result;
             }
             case DependencyKind.PlaywrightChromium:
                 // Use the Playwright version installed in the engine; never call
