@@ -9,7 +9,7 @@ export function activeSubjectBounds(history,year,{includeWalls=false,focusId=nul
     visibleAt(history,b,year) &&
     (includeWalls || !['wall','gate','tower'].includes(b.kind)) &&
     Array.isArray(b.p)&&b.p.length===2);
-  const focused=focusId?items.filter(b=>b.id===focusId):[];
+  const focused=focusId?(history.buildings||[]).filter(b=>b.id===focusId && visibleAt(history,b,year)):[];
   const list=focused.length?focused:items;
   if(!list.length)return null;
   let minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;
@@ -55,7 +55,8 @@ export function cameraQuality(result){
   if(!result)return [];
   const warnings=[];
   if(result.framing==='medium' && result.bounds.count===0)warnings.push('NO_SUBJECT');
-  if(result.framing==='close' && result.distance>350)warnings.push('SUBJECT_TOO_SMALL');
+  if(result.framing==='close' && result.bounds.count>1)warnings.push('CLOSEUP_HAS_MULTIPLE_SUBJECTS');
+  if(result.framing==='medium' && result.bounds.radius>300)warnings.push('SUBJECT_TOO_WIDE');
   if(result.framing==='overview' && result.bounds.radius>450)warnings.push('LARGE_SCENE');
   return warnings;
 }
