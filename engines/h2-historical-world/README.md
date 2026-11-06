@@ -100,6 +100,40 @@ Inspect `projects/city-v4/build/sheets/sheet_01.jpg` and `build/preview.mp4`. Th
 
 **Limits:** Procedural models are still stylized and not region-/culture-specific GLB assets. This increment does not introduce full GIS terrain reconstruction, new bridges, physically accurate water shaders, cinematic destruction sequences, or source-verified historical settlements. More advanced simulation and asset-import authoring should follow after visual QA.
 
+## V4.1 — Cinematic camera and environmental composition
+
+V4.1 adds opt-in subject-aware framing and seeded forest patches. Legacy shots with camera `from/to/target` still behave as before. No historical source claims are made.
+
+- New `engine/camera-director.mjs` computes bounds for buildings visible at a selected historical year (including event-driven changes).
+- `args.camera.framing` supports `overview`, `medium`, and `close`. The close-up mode accepts `focusId` (stable building ID). `azimuth`, `elevation`, and `sweepDegrees` are optional.
+- The synthetic sample uses closer **medium** settlement shots for epochs 1000/1100 and an **overview** of the walled city in 1200; the historical timeline is unchanged.
+- V4.1 forest clusters have deterministic density, vegetation color variation, and river/city clearing rather than a uniform spread. The generated vegetation remains illustrative.
+
+Example close-up scene camera:
+
+```json
+{
+  "framing": "close",
+  "focusId": "fort-0-07",
+  "azimuth": 40,
+  "elevation": 27,
+  "sweepDegrees": 6
+}
+```
+
+For a new visual test (do not reuse existing sample projects):
+
+```cmd
+npm install
+npx playwright install chromium
+npm test
+python tools/new_project.py --name city-v41 --title "Historical City V4.1" --pack historical
+node render.mjs --project projects/city-v41 --sheet --scale 0.5
+node render.mjs --project projects/city-v41 --from 0 --to 24 --scale 0.5
+```
+
+Inspect `projects/city-v41/build/sheets/sheet_01.jpg` and `projects/city-v41/build/preview.mp4`. A successful CI render confirms executable output, not cinematic or historical accuracy. Higher-detail LOD assets, bridge geometry and physically-based terrain/water remain future work.
+
 ## Development
 
 ```bash

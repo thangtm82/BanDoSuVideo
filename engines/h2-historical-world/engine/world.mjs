@@ -4,6 +4,8 @@ import {surfaceHeight,nearestRiverDistance,cameraPose,streetSegments} from './vi
 import {visibleAt,validateEvents} from './history-events.mjs';
 import {normalizeRoads,roadPieces,roadVisible} from './roads.mjs';
 import {variantFor,buildingParts} from './architecture.mjs';
+import {directedCamera,cameraQuality} from './camera-director.mjs';
+import {canopyScale,canopyTint} from './vegetation.mjs';
 
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 const color=(value,fallback)=>{try{return new THREE.Color(value||fallback)}catch{return new THREE.Color(fallback)}};
@@ -101,10 +103,11 @@ function buildTerrain(scene,world){
     const dummy=new THREE.Object3D(),positions=layout(Number(vegetation.seed)||31,trees,size*.46);
     for(let i=0;i<trees;i++){
       const [x,z,r]=positions[i],scale=.65+r*.8;
-      const riverGap=nearestRiverDistance(world,x,z);
-      // Instanced zero-scale slots retain deterministic placement and counts.
-      const hidden=riverGap<Math.max(12,Number(world.river?.width)||12)*1.7 || Math.hypot(x,z)<235;
-      const k=hidden?0:scale,land=surfaceHeight(world,x,z);
+      // Patch-like groves with riverbank clearings instead of uniform scatter.
+      const k=scale*canopyScale(world,x,z,r),land=surfaceHeight(world,x,z);
+      const shade=canopyTint(x,z,r);
+      foliage.setColorAt(i,new THREE.Color('#366e42').lerp(new THREE.Color('#659451'),shade));
+      foliage2.setColorAt(i,new THREE.Color('#487b47').lerp(new THREE.Color('#83a05d'),shade));
       dummy.position.set(x,land+4.5*k,z);dummy.scale.setScalar(k);dummy.rotation.set(0,0,0);
       dummy.updateMatrix();trunkMesh.setMatrixAt(i,dummy.matrix);
       dummy.position.y=land+14*k;dummy.updateMatrix();foliage.setMatrixAt(i,dummy.matrix);
@@ -112,6 +115,7 @@ function buildTerrain(scene,world){
     }
     for(const mesh of [trunkMesh,foliage,foliage2]){
       mesh.instanceMatrix.needsUpdate=true;
+      if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
       mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
     }
   }
@@ -199,7 +203,10 @@ export class HistoricalWorldRenderer{
       }
     }
     const t=shotT(shot,seconds),settings=shot.args?.camera||{};
-    const pose=cameraPose(settings,t);
+    const directed=directedCamera(this.history,year,settings,t);
+    const pose=directed||cameraPose(settings,t);
+    if(directed) this.lastCameraWarnings=cameraQuality(directed);
+    else this.lastCameraWarnings=[];
     this.camera.position.set(...pose.position);
     this.camera.lookAt(...pose.target);
     this.renderer.render(this.scene,this.camera);
