@@ -2,6 +2,7 @@ import * as THREE from '/node_modules/three/build/three.module.js';
 import {layout,shotAtTime,shotT,validateHistory} from './timeline.mjs';
 import {surfaceHeight,nearestRiverDistance,cameraPose,streetSegments} from './visuals.mjs';
 import {visibleAt,validateEvents} from './history-events.mjs';
+import {normalizeRoads,roadPieces,roadVisible} from './roads.mjs';
 
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 const color=(value,fallback)=>{try{return new THREE.Color(value||fallback)}catch{return new THREE.Color(fallback)}};
@@ -55,12 +56,36 @@ function buildTerrain(scene,world){
     water.receiveShadow=true;scene.add(water);
   }
 
-  // Roads follow the existing terrain height. They are optional to preserve V1 data.
-  for(const path of streetSegments(world)){
-    const points=path.map(([x,z])=>new THREE.Vector3(x,surfaceHeight(world,x,z)+.8,z));
-    const road=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),Math.max(16,path.length*10),2.1,4,false),
-      new THREE.MeshStandardMaterial({color:'#8c8068',roughness:1}));
-    scene.add(road);
+  // Roads are shallow ribbons, not raised round tubes. River-crossing portions
+  // are clipped unless a future bridge asset is explicitly modeled.
+  const roadMeshes=[];
+  for(const road of normalizeRoads(world)){
+    const group=new THREE.Group();
+    for(const path of roadPieces(world,road)){
+      const width=road.kind==='primary'?2.8:road.kind==='alley'?1.05:1.7;
+      const verts=[],indices=[];
+      for(let i=0;i<path.length;i++){
+        const [x,z]=path[i],prev=path[Math.max(0,i-1)],next=path[Math.min(path.length-1,i+1)];
+        const dx=next[0]-prev[0],dz=next[1]-prev[1],len=Math.hypot(dx,dz)||1;
+        const nx=-dz/len,nz=dx/len;
+        for(const side of [-1,1]){
+          const px=x+nx*side*width,pz=z+nz*side*width;
+          verts.push(px,surfaceHeight(world,px,pz)+.12,pz);
+        }
+        if(i<path.length-1){const j=i*2;indices.push(j,j+2,j+1,j+1,j+2,j+3)}
+      }
+      const g=new THREE.BufferGeometry();
+      g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));
+      g.setIndex(indices);g.computeVertexNormals();
+      const mesh=new THREE.Mesh(g,new THREE.MeshStandardMaterial({
+        color:road.kind==='primary'?'#a89e87':'#aca58f',
+        roughness:1,transparent:true,opacity:.62,
+        depthWrite:false,side:THREE.DoubleSide,polygonOffset:true,
+        polygonOffsetFactor:-1,polygonOffsetUnits:-1
+      }));
+      mesh.castShadow=false;mesh.receiveShadow=true;group.add(mesh);
+    }
+    scene.add(group);roadMeshes.push({road,group});
   }
 
   const vegetation=world.vegetation||{};
@@ -89,6 +114,7 @@ function buildTerrain(scene,world){
       mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
     }
   }
+  return roadMeshes;
 }
 function buildingGeometry(kind){
   if(kind==='tower')return new THREE.CylinderGeometry(9,11,32,8);
@@ -133,7 +159,7 @@ export class HistoricalWorldRenderer{
     light.shadow.camera.top=900;light.shadow.camera.bottom=-900;
     light.shadow.camera.near=1;light.shadow.camera.far=2000;
     light.shadow.bias=-.0004;this.scene.add(light);
-    buildTerrain(this.scene,this.world);
+    this.roadMeshes=buildTerrain(this.scene,this.world);
     this.camera=new THREE.PerspectiveCamera(42,(config.width||1280)/(config.height||720),1,6000);
     this.buildings=this.createBuildings();
   }
@@ -153,7 +179,7 @@ export class HistoricalWorldRenderer{
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.castShadow=true;mesh.receiveShadow=true;
       const roof=new THREE.InstancedMesh(roofGeometry(kind),
-        new THREE.MeshStandardMaterial({color:kind==='tower'?'#825c49':kind==='wall'?'#ab997b':'#855947',roughness:.92}),
+        new THREE.MeshStandardMaterial({color:kind==='tower'?'#825c49':kind==='wall'?'#ab997b':kind==='gate'?'#92765b':new THREE.Color(tint).lerp(new THREE.Color('#885b47'),.64),roughness:.92}),
         buildings.length);
       roof.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       roof.castShadow=true;roof.receiveShadow=true;
@@ -169,6 +195,7 @@ export class HistoricalWorldRenderer{
     const epoch=shot.args?.epoch||this.history.epochs[0].id;
     const year=this.history.epochs.find(e=>e.id===epoch)?.year;
     if(year===undefined)throw new Error('Shot references unknown epoch: '+epoch);
+    for(const {road,group} of this.roadMeshes)group.visible=roadVisible(road,year);
     for(const {mesh,roof,buildings,kind} of this.buildings){
       const dummy=new THREE.Object3D();
       buildings.forEach((b,i)=>{

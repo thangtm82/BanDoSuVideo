@@ -10,6 +10,8 @@ class CityGenerationTests(unittest.TestCase):
         self.assertEqual(len({b['id'] for b in buildings}), len(buildings))
         self.assertGreater(len(roads), 5)
         self.assertGreater(len(buildings), 100)
+        self.assertTrue(all(isinstance(r, dict) and 'from' in r for r in roads))
+        self.assertEqual(sum(1 for r in roads if r['from']==1000),2)
 
     def test_epoch_landmarks_and_fortification(self):
         buildings, _, events = create_city()
@@ -20,7 +22,7 @@ class CityGenerationTests(unittest.TestCase):
         self.assertTrue(all(b['from']==1200 for b in gates+walls))
         self.assertTrue(any(b['kind']=='market' for b in buildings))
         self.assertTrue(any(b['kind']=='temple' for b in buildings))
-        self.assertTrue(any(e['id']=='fortifications-completed' for e in events))
+        self.assertTrue(any(e['id']=='fortification-completed' for e in events))
 
 if __name__ == '__main__':
     unittest.main()

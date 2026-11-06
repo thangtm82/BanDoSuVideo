@@ -1,54 +1,77 @@
 #!/usr/bin/env python3
-"""Deterministic synthetic planned town with 3 historical development phases."""
+"""Synthetic, seeded historical town: phased streets, varied houses and walls."""
 import math
 import random
 
+RIVER = [[-600,-550],[-380,-350],[-180,-100],[60,100],[350,370],[590,560]]
+
+def distance_to_polyline(p, pts=RIVER):
+    x,z=p
+    best=float("inf")
+    for (ax,az),(bx,bz) in zip(pts,pts[1:]):
+        dx,dz=bx-ax,bz-az
+        t=max(0,min(1,((x-ax)*dx+(z-az)*dz)/(dx*dx+dz*dz)))
+        best=min(best, math.hypot(x-ax-t*dx,z-az-t*dz))
+    return best
+
 def create_city(seed=128):
-    rng = random.Random(seed)
-    buildings = []
-    roads = []
-    # Primary axes and four side streets; streets are reusable historical geometry.
-    for x in (-160,-80,0,80,160):
-        roads.append([[x,-230],[x,230]])
-    for z in (-160,-80,0,80,160):
-        roads.append([[-230,z],[230,z]])
-    roads.extend([[[-250,-240],[250,240]],[[-250,240],[250,-240]]])
-    # River runs near center; reserve a corridor for bridges and riverbanks.
-    river = [[-600,-550],[-380,-350],[-180,-100],[60,100],[350,370],[590,560]]
-    def river_distance(x,z):
-        best=1e9
-        for (ax,az),(bx,bz) in zip(river,river[1:]):
-            dx,dz=bx-ax,bz-az
-            t=max(0,min(1,((x-ax)*dx+(z-az)*dz)/(dx*dx+dz*dz)))
-            best=min(best,math.hypot(x-ax-dx*t,z-az-dz*t))
-        return best
-    # Houses align with the street grid and emerge by district phase.
+    rng=random.Random(seed)
+    buildings=[]
+    roads=[]
+    # Narrow, partially irregular axes. Road age follows settlement expansion.
+    for axis in ('x','z'):
+        for index,c in enumerate((-160,-80,0,80,160)):
+            # Shorter roads for outer neighborhoods; no full-map diagonal overlays.
+            extent=112 if c==0 else 182 if abs(c)==80 else 213
+            jitter=4 if c else 0
+            pts=[[c-jitter,-extent],[c+jitter,0],[c-jitter,extent]] if axis=='x' else [
+                [-extent,c-jitter],[0,c+jitter],[extent,c-jitter]]
+            first_year=1000 if c==0 else 1100 if abs(c)==80 else 1200
+            roads.append(dict(id=f'{axis}-{index}',pts=pts,
+                kind='primary' if c==0 else 'secondary',**{'from':first_year}))
+    # Local alleys only where inhabitants are established.
+    for z in (-120,120):
+        roads.append(dict(id=f'alley-{z}',pts=[[-110,z-3],[0,z],[110,z+3]],
+            kind='alley',**{'from':1100}))
+    # Reserve the landmark footprints before placing houses.
+    landmarks=[
+        ('main-market','market',[-54,15],1100,1.45),
+        ('town-hall','temple',[62,-42],1100,1.7),
+        ('hill-shrine','temple',[-133,145],1200,1.3),
+        ('bridge-guard','tower',[-40,28],1100,1.1)]
+    reserved=[(p,24*scale) for _,_,p,_,scale in landmarks]
+    palette=('#b99176','#c6ad87','#a98d74','#d0b495','#bfa88e','#a88c72')
     idx=0
-    for col in range(-9,10):
-        for row in range(-9,10):
-            x,z=col*24+12,row*24+12
-            if abs(x)>228 or abs(z)>228 or river_distance(x,z)<28:
-                continue
-            if abs(x)<33 and abs(z)<33:
-                continue
-            dist=max(abs(x),abs(z))
-            phase=1000 if dist<105 else 1100 if dist<180 else 1200
-            if rng.random()<(.93 if phase==1000 else .78):
-                idx+=1
-                district='market' if abs(x)<75 and abs(z)<100 else 'residential'
-                buildings.append(dict(id=f'house-{idx:04}',p=[x+rng.uniform(-2,2),z+rng.uniform(-2,2)],
-                    kind='house',district=district,**{'from':phase},
-                    rotation=round(rng.choice([0,math.pi/2]),3),
-                    scale=round(rng.uniform(.75,1.18),2)))
-    for name,kind,p,year,scale in [
-        ('main-market','market',[-55,10],1100,1.9),
-        ('town-hall','temple',[60,-35],1100,2.0),
-        ('hill-shrine','temple',[-115,170],1200,1.5),
-        ('bridge-guard','tower',[-40,28],1100,1.2)]:
+    # Compact blocks with housing fronts set back from streets; no intersections
+    # are populated with houses. Block coordinates stable across all epochs.
+    for bx in range(-3,3):
+        for bz in range(-3,3):
+            block_x,block_z=bx*80,bz*80
+            center_x,center_z=block_x+40,block_z+40
+            distance=max(abs(center_x),abs(center_z))
+            phase=1000 if distance<105 else 1100 if distance<180 else 1200
+            for ox in (19,40,61):
+                for oz in (19,40,61):
+                    x=block_x+ox+rng.uniform(-1,1)
+                    z=block_z+oz+rng.uniform(-1,1)
+                    if max(abs(x),abs(z))>225 or distance_to_polyline((x,z))<32:
+                        continue
+                    if any(math.hypot(x-p[0],z-p[1])<r for p,r in reserved):
+                        continue
+                    # Small, seeded pockets of gardens/courtyards break repetition.
+                    if rng.random()<(0.1 if phase==1000 else 0.19):
+                        continue
+                    idx+=1
+                    buildings.append(dict(id=f'house-{idx:04}',p=[round(x,2),round(z,2)],
+                        kind='house',district='center' if phase==1000 else 'outer',
+                        color=palette[(idx+bx+bz)%len(palette)],**{'from':phase},
+                        rotation=round(rng.choice((0,math.pi/2)),3),
+                        scale=round(rng.uniform(.67,1.1),2)))
+    for name,kind,p,year,scale in landmarks:
         buildings.append(dict(id=name,kind=kind,p=p,**{'from':year},scale=scale))
-    # The enclosed town is visually distinct only in the final epoch.
-    # Gates replace some wall segments on cardinal axes.
-    w=246
+    # Continuous perimeter: walls span 32 units with half-width 16.
+    # Four gates replace central wall segments, with corner towers.
+    w=240
     for side in range(4):
         for step in range(-7,8):
             d=step*32
@@ -56,10 +79,9 @@ def create_city(seed=128):
             kind='gate' if step==0 else 'tower' if abs(step)==7 else 'wall'
             buildings.append(dict(id=f'fort-{side}-{step+7:02}',p=[x,z],kind=kind,
                 **{'from':1200},rotation=math.pi/2 if side<2 else 0,scale=1))
-    # Explicit event log can be extended by authors, preserving stable object IDs.
     events=[
-        dict(id='town-market-opens',year=1100,changes=[dict(id='main-market',action='show')]),
-        dict(id='fortifications-completed',year=1200,
-             changes=[dict(id=b['id'],action='show') for b in buildings if b['id'].startswith('fort-')])
+        dict(id='market-opens',year=1100,changes=[dict(id='main-market',action='show')]),
+        dict(id='fortification-completed',year=1200,
+            changes=[dict(id=b['id'],action='show') for b in buildings if b['id'].startswith('fort-')])
     ]
     return buildings,roads,events

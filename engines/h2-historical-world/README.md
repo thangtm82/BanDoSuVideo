@@ -52,6 +52,28 @@ Inspect `projects/city-v3/build/sheets/sheet_01.jpg` and `projects/city-v3/build
 
 **Limitations:** Grid-based zoning is intentionally simplified; fortification geometry is schematic, roads may cross the procedural river without bridges, and no production GIS, authentic architectural assets, damage animation, archaeological verification or AI scene planning is included. For story-specific reconstructions, replace demo geometry with sourced world data.
 
+## V3.5 — City visual quality and road hierarchy
+
+The V3.5 procedural demo addresses overly prominent black street grids and crowded housing in the V3 storyboard:
+
+- Roads are shallow ground-conforming ribbons with earth-toned translucent materials, no cast shadows, and narrower primary/secondary/alley widths.
+- Roads are revealed by historical year using optional `{id,pts,kind,from,to}` objects in `world.roads.paths`. Older V2/V3 point-array roads remain supported.
+- River banks automatically clip road geometry. Bridges are **not** synthesized, so roads stop at the shore.
+- The generated demo has streets of different lengths, fewer oversized cross-map lines, building setbacks, courtyards, landmark clearance, river clearance and a broader house material palette.
+- Fortification/gate lifetime and timeline IDs remain unchanged.
+
+**Review scope:** Running `npm test` and `python -m unittest discover -s tools -p test_city_generator.py` verifies road rules, temporal visibility and city layout determinism. Real image acceptance still requires Chromium/FFmpeg and inspection of `sheet_01.jpg` (particularly the early settlement with only its central axes). Do not infer professional architectural fidelity from passing tests.
+
+Create a new sample rather than reusing an old V3 `projects/city-v3` directory:
+
+```cmd
+python tools/new_project.py --name city-v35 --title "City V3.5" --pack historical
+node render.mjs --project projects/city-v35 --sheet --scale 0.5
+node render.mjs --project projects/city-v35 --from 0 --to 24 --scale 0.5
+```
+
+Historical authenticity, bridges, curved city walls, imported high-detail architectural assets and physically validated urban layout remain separate follow-up tasks.
+
 ## Development
 
 ```bash
