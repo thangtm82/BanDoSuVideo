@@ -107,6 +107,13 @@ public sealed class EnvironmentManager
                 version is null ? "Chưa phát hiện WebView2 Runtime." : "Phiên bản " + version);
         }
 
+        // Historical World's Python CLI helpers use only the standard library.
+        // Do not ask users to install numpy/scipy/soundfile for this pack.
+        if (kind == DependencyKind.PythonPackages &&
+            File.Exists(Path.Combine(Engine, "packs", "historical", "pack.js")) &&
+            !File.Exists(Path.Combine(Engine, "requirements.txt")))
+            return new(kind, name, true, "Historical World sử dụng thư viện chuẩn Python; không cần cài .venv.", false);
+
         if (kind is DependencyKind.NpmPackages or DependencyKind.PlaywrightChromium or DependencyKind.PythonPackages or DependencyKind.ThreeJs)
         {
             if (!File.Exists(Path.Combine(Engine, "render.mjs")))
@@ -158,9 +165,10 @@ public sealed class EnvironmentManager
             {
                 // Terrain dynamically imports /node_modules/three/build/three.module.js.
                 // npm ls alone is not enough: the renderer needs that exact file.
-                var terrain = File.Exists(Path.Combine(Engine, "packs", "terrain", "pack.js"));
-                if (!terrain)
-                    return new(kind, name, true, "Không áp dụng: engine không có pack Terrain.", false);
+                var needsThree = File.Exists(Path.Combine(Engine, "packs", "terrain", "pack.js")) ||
+                    File.Exists(Path.Combine(Engine, "packs", "historical", "pack.js"));
+                if (!needsThree)
+                    return new(kind, name, true, "Không áp dụng: engine không dùng Three.js.", false);
                 var modulePath = Path.Combine(Engine, "node_modules", "three", "build", "three.module.js");
                 if (File.Exists(modulePath))
                     return new(kind, name, true, "Đã có " + modulePath);
@@ -294,8 +302,9 @@ public sealed class EnvironmentManager
             }
             case DependencyKind.ThreeJs:
             {
-                if (!File.Exists(Path.Combine(Engine, "packs", "terrain", "pack.js")))
-                    throw new InvalidOperationException("Engine đang chọn không có pack Terrain.");
+                if (!File.Exists(Path.Combine(Engine, "packs", "terrain", "pack.js")) &&
+                    !File.Exists(Path.Combine(Engine, "packs", "historical", "pack.js")))
+                    throw new InvalidOperationException("Engine đang chọn không dùng Three.js.");
                 var packagePath = Path.Combine(Engine, "package.json");
                 if (!File.Exists(packagePath))
                     throw new FileNotFoundException("Engine Terrain thiếu package.json.", packagePath);
