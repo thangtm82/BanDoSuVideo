@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>H2 V6.2 Historical World Preview</title>
+<style>body{margin:0;background:#151b20;color:white;font:14px sans-serif}#info{position:absolute;top:12px;left:12px;padding:12px;background:#182129cc;border-radius:8px}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head><body><div id="info">H2 V6.2 • procedural blockout • <span id="status">loading</span><div>Drag to orbit, scroll to zoom</div></div>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+const params=new URLSearchParams(location.search);
+const source=params.get('scene')||'../../build/v6_2_scene.json';
+const response=await fetch(source);
+if(!response.ok)throw Error('Scene JSON fetch failed: '+response.status);
+const world=await response.json();
+const scene=new THREE.Scene();scene.background=new THREE.Color('#b6c6ce');
+const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,5000);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;
+document.body.appendChild(renderer.domElement);
+const light=new THREE.DirectionalLight(0xffefd9,2.5);light.position.set(100,300,180);light.castShadow=true;
+light.shadow.mapSize.set(2048,2048);light.shadow.camera.left=-400;light.shadow.camera.right=400;
+light.shadow.camera.top=400;light.shadow.camera.bottom=-400;scene.add(light);
+scene.add(new THREE.AmbientLight(0xffffff,1.1));
+const ground=new THREE.Mesh(new THREE.BoxGeometry(1200,2,1200),new THREE.MeshStandardMaterial({color:'#6c755c',roughness:1}));
+ground.position.y=-1;ground.receiveShadow=true;scene.add(ground);
+const mats=new Map();
+for(const n of world.instances){
+ const key=n.color;
+ if(!mats.has(key))mats.set(key,new THREE.MeshStandardMaterial({color:key,roughness:.85}));
+ const mesh=new THREE.Mesh(new THREE.BoxGeometry(...n.dimensions),mats.get(key));
+ mesh.name=n.id;mesh.position.set(...n.position);mesh.rotation.y=n.rotation_y;
+ mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
+}
+function line(points,color,width=2){
+ if(points.length<2)return;
+ const geometry=new THREE.BufferGeometry().setFromPoints(points.map(p=>new THREE.Vector3(p[0],.18,p[2])));
+ const obj=new THREE.Line(geometry,new THREE.LineBasicMaterial({color,linewidth:width}));scene.add(obj);
+}
+for(const road of world.roads||[])line(road.points,'#b1a18b');
+line((world.river||[]).map(x=>x.position),'#548caa',3);
+const shot=(world.cameras||[])[0];
+camera.position.set(...(shot?.position||[520,260,500]));
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.target.set(...(shot?.target||[0,0,0]));controls.update();
+document.getElementById('status').textContent=world.instances.length+' structures';
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera)}animate();
+</script></body></html>
