@@ -29,6 +29,15 @@ for(const n of world.instances){
  const mesh=new THREE.Mesh(new THREE.BoxGeometry(...n.dimensions),mats.get(key));
  mesh.name=n.id;mesh.position.set(...n.position);mesh.rotation.y=n.rotation_y;
  mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
+ if(n.roof?.style==="hip"){
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(1,n.roof.height,4),
+    new THREE.MeshStandardMaterial({color:n.roof.color,roughness:.9}));
+  roof.name=n.id+"-roof";
+  roof.scale.set(n.dimensions[0]/Math.SQRT2,1,n.dimensions[2]/Math.SQRT2);
+  roof.position.set(n.position[0],n.position[1]+n.dimensions[1]/2+n.roof.height/2,n.position[2]);
+  roof.rotation.y=n.rotation_y+Math.PI/4;
+  roof.castShadow=true;roof.receiveShadow=true;scene.add(roof);
+ }
 }
 function line(points,color,width=2){
  if(points.length<2)return;
@@ -38,6 +47,7 @@ function line(points,color,width=2){
 for(const road of world.roads||[])line(road.points,'#b1a18b');
 line((world.river||[]).map(x=>x.position),'#548caa',3);
 const shot=(world.cameras||[])[0];
+camera.fov=shot?.fov||45;camera.updateProjectionMatrix();
 camera.position.set(...(shot?.position||[520,260,500]));
 const controls=new OrbitControls(camera,renderer.domElement);
 controls.target.set(...(shot?.target||[0,0,0]));controls.update();
