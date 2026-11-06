@@ -74,6 +74,32 @@ node render.mjs --project projects/city-v35 --from 0 --to 24 --scale 0.5
 
 Historical authenticity, bridges, curved city walls, imported high-detail architectural assets and physically validated urban layout remain separate follow-up tasks.
 
+## V4 — architecture and urban reconstruction baseline
+
+V4 upgrades the **synthetic demonstration**, without introducing unsupported historical claims:
+
+- Eight procedural residential variants (`gable`, `hip`, `courtyard`, `longhouse`, `workshop`, `storehouse`, `two-storey`, `terraced`). Stable building IDs produce reproducible fallback styles for older projects.
+- New `engine/architecture.mjs` produces instanced walls, roofs, doors, extensions and civic architecture. Specialized wall battlements, corner towers, and open gate passages replace plain box-like city fortifications.
+- Adjacent districts are staggered slightly rather than following identical rectilinear blocks.
+- Sample camera positions remain consistent across epochs to make settlement expansion and final fortification visually comparable.
+- The existing historical `show/hide` event system and V3.5 river-aware phased roads remain unchanged.
+- Multiple meshes per architectural variant cost more draw calls and memory than V3.5. Check the full 24-second render and memory on the target hardware.
+
+To generate a **fresh** V4 sample (not an existing V3.5 project):
+
+```cmd
+npm install
+npx playwright install chromium
+npm test
+python tools/new_project.py --name city-v4 --title "Historical City V4" --pack historical
+node render.mjs --project projects/city-v4 --sheet --scale 0.5
+node render.mjs --project projects/city-v4 --from 0 --to 24 --scale 0.5
+```
+
+Inspect `projects/city-v4/build/sheets/sheet_01.jpg` and `build/preview.mp4`. The target is visibly distinct house silhouettes, clear city walls/gates, and the same comparable framing across all three historical epochs.
+
+**Limits:** Procedural models are still stylized and not region-/culture-specific GLB assets. This increment does not introduce full GIS terrain reconstruction, new bridges, physically accurate water shaders, cinematic destruction sequences, or source-verified historical settlements. More advanced simulation and asset-import authoring should follow after visual QA.
+
 ## Development
 
 ```bash
