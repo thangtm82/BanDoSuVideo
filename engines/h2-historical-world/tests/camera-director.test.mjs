@@ -16,7 +16,7 @@ test('camera framing adapts to settlements and different epochs',()=>{
   assert.ok(overview.distance>growth.distance);
 });
 test('close-up can focus on a historically visible gate',()=>{
-  assert.equal(activeSubjectBounds(history,1000,{focusId:'fort-gate'}).count,1);
+  assert.equal(activeSubjectBounds(history,1200,{focusId:'fort-gate'}).count,1);
   const close=directedCamera(history,1200,{framing:'close',focusId:'fort-gate'});
   assert.equal(close.bounds.count,1);
   assert.deepEqual(close.bounds.center.slice(0,1),[-200]);
