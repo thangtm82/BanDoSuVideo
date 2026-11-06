@@ -60,6 +60,11 @@ def instances(world):
             "position": [node["position"][0], node["position"][1] + height / 2, node["position"][2]],
             "rotation_y": node["rotation_y"], "dimensions": [dims[i] * scale[i] for i in range(3)],
             "color": COLORS[node["kind"]],
+            "roof": {
+                "height": round(max(2.0, dims[1] * scale[1] * 0.38), 3),
+                "color": "#855b48" if node["kind"] in ("house", "market") else "#746655",
+                "style": "hip" if node["kind"] in ("house", "market", "temple", "tower") else "none",
+            },
         })
     return output
 
