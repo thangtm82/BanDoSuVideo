@@ -43,9 +43,11 @@ for i,e in enumerate(epochs):
     start=i*8
     shots.append(dict(id=f's{i+1:03d}',start=start,end=start+8,
       line=f'Giai đoạn mô phỏng {e["title"]}',tpl='epoch3d',
-      args={'epoch':e['id'],'camera':{'mode':'dolly',
-        'from':[590,500,680],
-        'to':[555,475,645],'target':[0,15,0],'easing':'linear'}}))
+      args={'epoch':e['id'],'camera':(
+        {'framing':'medium','azimuth':43,'elevation':32,'sweepDegrees':9}
+        if i<2 else
+        {'framing':'overview','azimuth':43,'elevation':35,'sweepDegrees':6}
+      )}))
 write('story/shots.json',{'shots':shots})
 write('timeline/lines.json',{'lines':[{'id':s['id'],'start':s['start'],
                                      'end':s['end'],'line':s['line']} for s in shots]})
