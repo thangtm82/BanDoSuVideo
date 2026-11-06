@@ -41,12 +41,15 @@ def create_city(seed=128):
         ('bridge-guard','tower',[-40,28],1100,1.1)]
     reserved=[(p,24*scale) for _,_,p,_,scale in landmarks]
     palette=('#b99176','#c6ad87','#a98d74','#d0b495','#bfa88e','#a88c72')
+    variants=('gable','hip','courtyard','longhouse','workshop','storehouse','two-storey','terraced')
     idx=0
     # Compact blocks with housing fronts set back from streets; no intersections
     # are populated with houses. Block coordinates stable across all epochs.
     for bx in range(-3,3):
         for bz in range(-3,3):
-            block_x,block_z=bx*80,bz*80
+            # Adjacent neighborhoods are slightly offset, reducing rigid grid appearance.
+            block_x=bx*80+(7 if bz%2 else -4)
+            block_z=bz*80+(5 if bx%2 else -5)
             center_x,center_z=block_x+40,block_z+40
             distance=max(abs(center_x),abs(center_z))
             phase=1000 if distance<105 else 1100 if distance<180 else 1200
@@ -64,6 +67,7 @@ def create_city(seed=128):
                     idx+=1
                     buildings.append(dict(id=f'house-{idx:04}',p=[round(x,2),round(z,2)],
                         kind='house',district='center' if phase==1000 else 'outer',
+                        variant=variants[(idx+bx*3+bz*5)%len(variants)],
                         color=palette[(idx+bx+bz)%len(palette)],**{'from':phase},
                         rotation=round(rng.choice((0,math.pi/2)),3),
                         scale=round(rng.uniform(.67,1.1),2)))
