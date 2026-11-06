@@ -13,6 +13,15 @@ class CityGenerationTests(unittest.TestCase):
         self.assertTrue(all(isinstance(r, dict) and 'from' in r for r in roads))
         self.assertEqual(sum(1 for r in roads if r['from']==1000),2)
 
+    def test_style_variety_and_structural_clearance(self):
+        from city_generator import distance_to_polyline
+        buildings, roads, _ = create_city()
+        houses=[b for b in buildings if b['kind']=='house']
+        styles={b['variant'] for b in houses}
+        self.assertGreaterEqual(len(styles),6)
+        self.assertTrue(all(distance_to_polyline(b['p'])>=32 for b in houses))
+        self.assertEqual(len({b['id'] for b in buildings}),len(buildings))
+
     def test_epoch_landmarks_and_fortification(self):
         buildings, _, events = create_city()
         gates=[b for b in buildings if b['kind']=='gate']
