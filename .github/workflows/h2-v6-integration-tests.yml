@@ -1,0 +1,24 @@
+name: H2 V6 Integration Tests
+on:
+  pull_request:
+    paths:
+      - 'engines/h2-historical-world/tools/v6_*.py'
+      - 'engines/h2-historical-world/tests/test_v6_*.py'
+      - '.github/workflows/h2-v6-integration-tests.yml'
+  push:
+    paths:
+      - 'engines/h2-historical-world/tools/v6_*.py'
+      - 'engines/h2-historical-world/tests/test_v6_*.py'
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile V6 Python tools
+        run: python -m compileall -q engines/h2-historical-world/tools
+      - name: Run V6 regression tests
+        working-directory: engines/h2-historical-world
+        run: python -m unittest discover -s tests -p 'test_v6_*.py' -v
