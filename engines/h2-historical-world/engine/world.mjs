@@ -1,6 +1,7 @@
 import * as THREE from '/node_modules/three/build/three.module.js';
 import {layout,shotAtTime,shotT,validateHistory} from './timeline.mjs';
-import {surfaceHeight,nearestRiverDistance,cameraPose,streetSegments,buildingActive} from './visuals.mjs';
+import {surfaceHeight,nearestRiverDistance,cameraPose,streetSegments} from './visuals.mjs';
+import {visibleAt,validateEvents} from './history-events.mjs';
 
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 const color=(value,fallback)=>{try{return new THREE.Color(value||fallback)}catch{return new THREE.Color(fallback)}};
@@ -92,11 +93,17 @@ function buildTerrain(scene,world){
 function buildingGeometry(kind){
   if(kind==='tower')return new THREE.CylinderGeometry(9,11,32,8);
   if(kind==='wall')return new THREE.BoxGeometry(32,20,8);
+  if(kind==='gate')return new THREE.BoxGeometry(32,24,9);
+  if(kind==='market')return new THREE.BoxGeometry(24,13,22);
+  if(kind==='temple')return new THREE.BoxGeometry(24,22,28);
   return new THREE.BoxGeometry(15,14,18);
 }
 function roofGeometry(kind){
   if(kind==='wall')return new THREE.BoxGeometry(34,2.5,11);
+  if(kind==='gate')return new THREE.BoxGeometry(34,3.5,12);
   if(kind==='tower')return new THREE.ConeGeometry(13,12,8);
+  if(kind==='temple')return new THREE.ConeGeometry(21,12,4);
+  if(kind==='market')return new THREE.ConeGeometry(19,9,4);
   // Four-sided hipped roof is a lightweight upgrade over the plain box.
   const roof=new THREE.ConeGeometry(13,9,4);
   roof.rotateY(Math.PI/4);
@@ -105,6 +112,7 @@ function roofGeometry(kind){
 export class HistoricalWorldRenderer{
   constructor(canvas,config,history,story){
     validateHistory(history);
+    validateEvents(history);
     this.config=config;this.history=history;this.story=story;
     this.world=history.world||{};
     this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,preserveDrawingBuffer:true});
@@ -164,14 +172,16 @@ export class HistoricalWorldRenderer{
     for(const {mesh,roof,buildings,kind} of this.buildings){
       const dummy=new THREE.Object3D();
       buildings.forEach((b,i)=>{
-        const live=buildingActive(b,year);
+        const live=visibleAt(this.history,b,year);
         const [x,z]=b.p;
         const ground=surfaceHeight(this.world,x,z);
-        dummy.position.set(x,ground+(kind==='tower'?16:kind==='wall'?10:7),z);
+        const baseHeight=kind==='tower'?16:kind==='wall'?10:kind==='gate'?12:kind==='temple'?11:7;
+        dummy.position.set(x,ground+baseHeight,z);
         dummy.rotation.set(0,Number(b.rotation)||0,0);
         dummy.scale.setScalar(live?(Number(b.scale)||1):0);
         dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
-        dummy.position.y=ground+(kind==='tower'?37:kind==='wall'?21:19)*(Number(b.scale)||1);
+        const roofHeight=kind==='tower'?37:kind==='wall'?21:kind==='gate'?25:kind==='temple'?28:kind==='market'?17:19;
+        dummy.position.y=ground+roofHeight*(Number(b.scale)||1);
         dummy.updateMatrix();roof.setMatrixAt(i,dummy.matrix);
       });
       mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();
