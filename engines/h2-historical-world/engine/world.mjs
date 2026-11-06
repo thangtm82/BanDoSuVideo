@@ -4,6 +4,7 @@ import {surfaceHeight,nearestRiverDistance,cameraPose,streetSegments} from './vi
 import {visibleAt,validateEvents} from './history-events.mjs';
 import {normalizeRoads,roadPieces,roadVisible} from './roads.mjs';
 import {variantFor,buildingParts} from './architecture.mjs';
+import {directedCamera,cameraQuality} from './camera-director.mjs';
 
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 const color=(value,fallback)=>{try{return new THREE.Color(value||fallback)}catch{return new THREE.Color(fallback)}};
@@ -199,7 +200,10 @@ export class HistoricalWorldRenderer{
       }
     }
     const t=shotT(shot,seconds),settings=shot.args?.camera||{};
-    const pose=cameraPose(settings,t);
+    const directed=directedCamera(this.history,year,settings,t);
+    const pose=directed||cameraPose(settings,t);
+    if(directed) this.lastCameraWarnings=cameraQuality(directed);
+    else this.lastCameraWarnings=[];
     this.camera.position.set(...pose.position);
     this.camera.lookAt(...pose.target);
     this.renderer.render(this.scene,this.camera);
