@@ -1,0 +1,26 @@
+{
+  "version": "6.0",
+  "worlds": [
+    {
+      "id": "demo-world",
+      "historical_accuracy": "fictional-demo"
+    }
+  ],
+  "scenes": [
+    {
+      "id": "S001",
+      "type": "world3d",
+      "world_id": "demo-world",
+      "script_section_id": "P001",
+      "description": "Establishing view of a fictional settlement",
+      "start_seconds": 0,
+      "end_seconds": 8,
+      "visual_intent": "establish_context",
+      "camera": {
+        "shot_size": "extreme_wide",
+        "movement": "dolly_in"
+      },
+      "renderer": "threejs"
+    }
+  ]
+}
