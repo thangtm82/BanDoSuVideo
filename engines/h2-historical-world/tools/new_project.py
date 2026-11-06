@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Create a synthetic, editable Historical World sample project for BanDoSuVideo."""
-import argparse, json, math, random
+import argparse, json
+from city_generator import create_city
 from pathlib import Path
 
 p=argparse.ArgumentParser()
@@ -26,31 +27,15 @@ write('config.json',dict(title=a.title,pack='historical',lang=a.lang,style=a.sty
 epochs=[dict(id='early',year=1000,title='Early settlement'),
         dict(id='growth',year=1100,title='Growing town'),
         dict(id='late',year=1200,title='Walled town')]
-rng=random.Random(128)
-buildings=[]
-for i in range(420):
-    angle=rng.random()*math.tau
-    radius=math.sqrt(rng.random())*220
-    x=round(math.cos(angle)*radius,2)
-    z=round(math.sin(angle)*radius,2)
-    since=epochs[i%3]['year']
-    buildings.append(dict(id=f'building-{i+1:04d}',p=[x,z],from_=since))
-    buildings[-1]['from']=buildings[-1].pop('from_')
-    buildings[-1]['kind']='tower' if i%63==0 else 'house'
-    buildings[-1]['rotation']=round(rng.random()*math.tau,3)
-    buildings[-1]['scale']=round(.7+rng.random()*.7,2)
+buildings, roads, events = create_city()
 write('history/world.json',{
   'world':{'size':1400,'ground':'#a1a287','sky':'#bed6d7',
     'hills':[{'p':[-280,240],'r':270,'h':120},{'p':[380,-310],'r':260,'h':75}],
     'river':{'pts':[[-600,-550],[-380,-350],[-180,-100],[60,100],[350,370],[590,560]],'width':12},
     'vegetation':{'seed':1234,'count':850},
     'exposure':1.14,
-    'roads':{'paths':[
-      [[-190,-170],[-95,-80],[0,0],[95,80],[185,160]],
-      [[-165,140],[-65,75],[45,-25],[165,-115]],
-      [[-210,15],[-100,15],[0,20],[120,35],[230,55]]
-    ]}},
-  'epochs':epochs,'buildings':buildings,
+    'roads':{'paths':roads}},
+  'epochs':epochs,'buildings':buildings,'events':events,
   'evidence':{'status':'illustrative','note':'Fictional city. No historical accuracy claimed.'}
 })
 shots=[]
