@@ -40,6 +40,16 @@ def render(scene_file, output_file):
         obj.dimensions = (dx, dz, dy)
         obj.rotation_euler.z = -float(inst["rotation_y"])
         obj.data.materials.append(material(inst["color"]))
+        roof = inst.get("roof", {})
+        if roof.get("style") == "hip":
+            roof_height = float(roof["height"])
+            bpy.ops.mesh.primitive_cone_add(vertices=4, radius1=1, radius2=0,
+                depth=roof_height, location=(x, z, y + dy / 2 + roof_height / 2),
+                rotation=(0, 0, math.pi / 4 - float(inst["rotation_y"])))
+            top = bpy.context.object
+            top.name = inst["id"] + "-roof"
+            top.scale = (dx / math.sqrt(2), dz / math.sqrt(2), 1)
+            top.data.materials.append(material(roof["color"]))
     bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, -1))
     ground = bpy.context.object
     ground.name = "H2 terrain blockout"
@@ -69,22 +79,22 @@ def render(scene_file, output_file):
     output = nodes.get("World Output") or nodes.new("ShaderNodeOutputWorld")
     scene.world.node_tree.links.new(background.outputs["Background"], output.inputs["Surface"])
     background.inputs["Color"].default_value = (0.64, 0.74, 0.82, 1.0)
-    background.inputs["Strength"].default_value = 0.9
+    background.inputs["Strength"].default_value = 0.45
     # Sun light keeps brightness consistent across the entire town.
     bpy.ops.object.light_add(type="SUN", location=(0, 0, 250))
     sun = bpy.context.object
     sun.name = "H2 daylight sun"
     sun.rotation_euler = (math.radians(35), math.radians(-25), math.radians(-30))
-    sun.data.energy = 2.5
+    sun.data.energy = 1.8
     sun.data.angle = math.radians(5)
     bpy.ops.object.light_add(type="AREA", location=(100, -150, 350))
     fill = bpy.context.object
     fill.name = "H2 soft fill"
-    fill.data.energy = 100000
+    fill.data.energy = 25000
     fill.data.shape = "DISK"
     fill.data.size = 500
     scene.view_settings.view_transform = "AgX"
-    scene.view_settings.exposure = 0.5
+    scene.view_settings.exposure = -0.5
     path = Path(output_file).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     scene.render.filepath = str(path)
