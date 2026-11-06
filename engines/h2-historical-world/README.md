@@ -12,6 +12,21 @@ A new, **independent** historical world engine for BanDoSuVideo. It is not an up
 - Importable engine ZIP built by `H2 Historical World 3D CI` action; **ZIP excludes node_modules**.
 - Three sample epochs and 420 synthetic buildings. **All example history is fictional**; not a reconstruction of Jerusalem or Thăng Long.
 
+## V2 visual quality upgrade (opt-in, deterministic)
+
+V2 improves the existing Three.js procedural renderer without changing the world history format or requiring external paid assets:
+
+- Sculpted surface relief with deterministic ground vertex colors; the river corridor is carved into the ground.
+- Water is a triangulated flat ribbon following the river (no longer a round tube).
+- Optional `world.roads.paths` roads draped over terrain and deterministic tree clearings by the settlement and river.
+- Houses/towers/walls receive separate roofs, soft shadow maps and improved atmospheric lighting.
+- Camera motion supports smooth ease-in/out and optional `args.camera.mode: "orbit"` plus `angle`; original `from`, `to`, `target` remain compatible.
+- New project samples include roads and closer camera positions; older `history/world.json` files still load.
+
+Render test: `npm test`, then `python tools/new_project.py --name visual-v2 --title "Visual V2" --pack historical` followed by `node render.mjs --project projects/visual-v2 --sheet --scale 0.5`.
+
+**Scope**: This is a stylized procedural 3D visual improvement, not an accurate historically sourced reconstruction, professional architectural assets, real GIS or photorealism. Evaluate resulting thumbnail/sheet visually before production.
+
 ## Development
 
 ```bash
