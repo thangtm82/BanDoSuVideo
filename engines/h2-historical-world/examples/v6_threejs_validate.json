@@ -1,0 +1,9 @@
+{
+  "operation": "validate",
+  "world_spec": {
+    "name": "H2 V6 synthetic test world",
+    "seed": 42
+  },
+  "duration_seconds": 8,
+  "quality_tier": "blockout"
+}
