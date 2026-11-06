@@ -43,7 +43,13 @@ write('history/world.json',{
   'world':{'size':1400,'ground':'#a1a287','sky':'#bed6d7',
     'hills':[{'p':[-280,240],'r':270,'h':120},{'p':[380,-310],'r':260,'h':75}],
     'river':{'pts':[[-600,-550],[-380,-350],[-180,-100],[60,100],[350,370],[590,560]],'width':12},
-    'vegetation':{'seed':1234,'count':850}},
+    'vegetation':{'seed':1234,'count':850},
+    'exposure':1.14,
+    'roads':{'paths':[
+      [[-190,-170],[-95,-80],[0,0],[95,80],[185,160]],
+      [[-165,140],[-65,75],[45,-25],[165,-115]],
+      [[-210,15],[-100,15],[0,20],[120,35],[230,55]]
+    ]}},
   'epochs':epochs,'buildings':buildings,
   'evidence':{'status':'illustrative','note':'Fictional city. No historical accuracy claimed.'}
 })
@@ -52,8 +58,9 @@ for i,e in enumerate(epochs):
     start=i*8
     shots.append(dict(id=f's{i+1:03d}',start=start,end=start+8,
       line=f'Giai đoạn mô phỏng {e["title"]}',tpl='epoch3d',
-      args={'epoch':e['id'],'camera':{'from':[680,650,700],
-        'to':[520-i*80,450-i*35,520-i*60],'target':[0,20,0]}}))
+      args={'epoch':e['id'],'camera':{'mode':'orbit' if i==2 else 'dolly',
+        'angle':22,'from':[550-i*60,390-i*35,560-i*50],
+        'to':[440-i*55,290-i*30,460-i*50],'target':[0,20,0]}}))
 write('story/shots.json',{'shots':shots})
 write('timeline/lines.json',{'lines':[{'id':s['id'],'start':s['start'],
                                      'end':s['end'],'line':s['line']} for s in shots]})
