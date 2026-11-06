@@ -12,6 +12,30 @@ ALLOWED = {
     "blender_world": "tools.graphics.blender_world",
     "threejs_asset_catalog": "tools.graphics.threejs_asset_catalog",
 }
+def verify_artifacts(tool_name, payload, result):
+    """Detect Blender returning success even when its runtime emitted no files."""
+    if not result.success or tool_name != "blender_world":
+        return None
+    operation = payload.get("operation")
+    if operation not in {"build", "render_still", "render_animation"}:
+        return None
+    output = payload.get("output_path")
+    blend = payload.get("blend_path") or (
+        str(Path(str(output)).with_suffix(".blend")) if output else "blender-world.blend"
+    )
+    required = [Path(blend).expanduser().resolve()]
+    if operation == "render_still" and output:
+        required.append(Path(output).expanduser().resolve())
+    if operation == "render_animation" and output:
+        # Animation output may be a frame prefix, not a single PNG.
+        prefix = Path(output).expanduser().resolve()
+        if not prefix.parent.exists() or not any(prefix.parent.glob(prefix.name + "*")):
+            return "No rendered animation frames found for " + str(prefix)
+    missing = [str(path) for path in required if not path.is_file() or path.stat().st_size == 0]
+    if missing:
+        return "Blender reported success but missing/empty artifacts: " + ", ".join(missing)
+    return None
+
 def invoke(repo_path, tool_name, payload):
     root = Path(repo_path).expanduser().resolve()
     if not (root / "tools" / "base_tool.py").is_file():
@@ -25,7 +49,10 @@ def invoke(repo_path, tool_name, payload):
     cls_name = {"threejs_world": "ThreeJSWorld", "blender_world": "BlenderWorld", "threejs_asset_catalog": "ThreeJSAssetCatalog"}[tool_name]
     tool = getattr(module, cls_name)()
     result = tool.execute(payload)
-    return {"success": bool(result.success), "error": result.error, "data": result.data, "artifacts": result.artifacts}
+    artifact_error = verify_artifacts(tool_name, payload, result)
+    return {"success": bool(result.success) and not artifact_error,
+            "error": artifact_error or result.error,
+            "data": result.data, "artifacts": result.artifacts}
 
 def main():
     p = argparse.ArgumentParser()
