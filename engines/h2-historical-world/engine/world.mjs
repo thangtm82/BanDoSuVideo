@@ -3,6 +3,7 @@ import {layout,shotAtTime,shotT,validateHistory} from './timeline.mjs';
 import {surfaceHeight,nearestRiverDistance,cameraPose,streetSegments} from './visuals.mjs';
 import {visibleAt,validateEvents} from './history-events.mjs';
 import {normalizeRoads,roadPieces,roadVisible} from './roads.mjs';
+import {variantFor,buildingParts} from './architecture.mjs';
 
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 const color=(value,fallback)=>{try{return new THREE.Color(value||fallback)}catch{return new THREE.Color(fallback)}};
@@ -116,25 +117,6 @@ function buildTerrain(scene,world){
   }
   return roadMeshes;
 }
-function buildingGeometry(kind){
-  if(kind==='tower')return new THREE.CylinderGeometry(9,11,32,8);
-  if(kind==='wall')return new THREE.BoxGeometry(32,20,8);
-  if(kind==='gate')return new THREE.BoxGeometry(32,24,9);
-  if(kind==='market')return new THREE.BoxGeometry(24,13,22);
-  if(kind==='temple')return new THREE.BoxGeometry(24,22,28);
-  return new THREE.BoxGeometry(15,14,18);
-}
-function roofGeometry(kind){
-  if(kind==='wall')return new THREE.BoxGeometry(34,2.5,11);
-  if(kind==='gate')return new THREE.BoxGeometry(34,3.5,12);
-  if(kind==='tower')return new THREE.ConeGeometry(13,12,8);
-  if(kind==='temple')return new THREE.ConeGeometry(21,12,4);
-  if(kind==='market')return new THREE.ConeGeometry(19,9,4);
-  // Four-sided hipped roof is a lightweight upgrade over the plain box.
-  const roof=new THREE.ConeGeometry(13,9,4);
-  roof.rotateY(Math.PI/4);
-  return roof;
-}
 export class HistoricalWorldRenderer{
   constructor(canvas,config,history,story){
     validateHistory(history);
@@ -164,27 +146,27 @@ export class HistoricalWorldRenderer{
     this.buildings=this.createBuildings();
   }
   createBuildings(){
-    // Group by material and type, then keep individual visibility in epoch selection.
-    const instances=[];
-    const groups=new Map();
-    for(const b of this.history.buildings||[]){
-      const key=(b.kind||'house')+':'+(b.color||'#c7a17e');
-      if(!groups.has(key))groups.set(key,[]);
-      groups.get(key).push(b);
+    // Instance each architectural piece by variant + material; stable lifetime
+    // changes never reallocate geometry or change any historical object ID.
+    const instances=[],groups=new Map();
+    for(const building of this.history.buildings||[]){
+      const kind=building.kind||'house',variant=variantFor(building);
+      const tint=building.color||'#c7a17e';
+      const key=[kind,variant,tint].join('|');
+      if(!groups.has(key))groups.set(key,{kind,variant,tint,buildings:[]});
+      groups.get(key).buildings.push(building);
     }
-    for(const [key,buildings] of groups){
-      const [kind,tint]=key.split(':');
-      const mesh=new THREE.InstancedMesh(buildingGeometry(kind),
-        new THREE.MeshStandardMaterial({color:tint,roughness:.91}),buildings.length);
-      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      mesh.castShadow=true;mesh.receiveShadow=true;
-      const roof=new THREE.InstancedMesh(roofGeometry(kind),
-        new THREE.MeshStandardMaterial({color:kind==='tower'?'#825c49':kind==='wall'?'#ab997b':kind==='gate'?'#92765b':new THREE.Color(tint).lerp(new THREE.Color('#885b47'),.64),roughness:.92}),
-        buildings.length);
-      roof.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      roof.castShadow=true;roof.receiveShadow=true;
-      this.scene.add(mesh,roof);
-      instances.push({mesh,roof,buildings,kind});
+    for(const {kind,variant,tint,buildings} of groups.values()){
+      const pieces=buildingParts(THREE,kind,variant,tint).map(part=>{
+        const mesh=new THREE.InstancedMesh(part.geometry,
+          new THREE.MeshStandardMaterial({color:part.color,roughness:.89}),
+          buildings.length);
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        mesh.castShadow=true;mesh.receiveShadow=true;
+        this.scene.add(mesh);
+        return {mesh,offset:new THREE.Vector3(...part.offset)};
+      });
+      instances.push({buildings,pieces});
     }
     return instances;
   }
@@ -196,23 +178,25 @@ export class HistoricalWorldRenderer{
     const year=this.history.epochs.find(e=>e.id===epoch)?.year;
     if(year===undefined)throw new Error('Shot references unknown epoch: '+epoch);
     for(const {road,group} of this.roadMeshes)group.visible=roadVisible(road,year);
-    for(const {mesh,roof,buildings,kind} of this.buildings){
-      const dummy=new THREE.Object3D();
-      buildings.forEach((b,i)=>{
-        const live=visibleAt(this.history,b,year);
-        const [x,z]=b.p;
-        const ground=surfaceHeight(this.world,x,z);
-        const baseHeight=kind==='tower'?16:kind==='wall'?10:kind==='gate'?12:kind==='temple'?11:7;
-        dummy.position.set(x,ground+baseHeight,z);
-        dummy.rotation.set(0,Number(b.rotation)||0,0);
-        dummy.scale.setScalar(live?(Number(b.scale)||1):0);
-        dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
-        const roofHeight=kind==='tower'?37:kind==='wall'?21:kind==='gate'?25:kind==='temple'?28:kind==='market'?17:19;
-        dummy.position.y=ground+roofHeight*(Number(b.scale)||1);
-        dummy.updateMatrix();roof.setMatrixAt(i,dummy.matrix);
-      });
-      mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();
-      roof.instanceMatrix.needsUpdate=true;roof.computeBoundingSphere();
+    const base=new THREE.Object3D(),offsetMatrix=new THREE.Matrix4(),finalMatrix=new THREE.Matrix4();
+    for(const {pieces,buildings} of this.buildings){
+      for(let i=0;i<buildings.length;i++){
+        const building=buildings[i],live=visibleAt(this.history,building,year);
+        const [x,z]=building.p;
+        base.position.set(x,surfaceHeight(this.world,x,z),z);
+        base.rotation.set(0,Number(building.rotation)||0,0);
+        base.scale.setScalar(live?(Number(building.scale)||1):0);
+        base.updateMatrix();
+        for(const part of pieces){
+          offsetMatrix.makeTranslation(part.offset.x,part.offset.y,part.offset.z);
+          finalMatrix.multiplyMatrices(base.matrix,offsetMatrix);
+          part.mesh.setMatrixAt(i,finalMatrix);
+        }
+      }
+      for(const part of pieces){
+        part.mesh.instanceMatrix.needsUpdate=true;
+        part.mesh.computeBoundingSphere();
+      }
     }
     const t=shotT(shot,seconds),settings=shot.args?.camera||{};
     const pose=cameraPose(settings,t);
