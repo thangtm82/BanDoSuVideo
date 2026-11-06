@@ -33,6 +33,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Create sample historical world
         run: |
+          (cd tools && python3 -m unittest test_city_generator.py)
           python3 tools/new_project.py --name sample --title "Historical World CI" --pack historical
           python3 tools/doctor.py
           npm run doctor
