@@ -97,9 +97,9 @@ function buildingGeometry(kind){
 function roofGeometry(kind){
   if(kind==='wall')return new THREE.BoxGeometry(34,2.5,11);
   if(kind==='tower')return new THREE.ConeGeometry(13,12,8);
-  // Rotate the roof ridge along local Z on buildings.
-  const roof=new THREE.CylinderGeometry(0,10,17,4,1);
-  roof.rotateZ(Math.PI/2);roof.rotateY(Math.PI/4);
+  // Four-sided hipped roof is a lightweight upgrade over the plain box.
+  const roof=new THREE.ConeGeometry(13,9,4);
+  roof.rotateY(Math.PI/4);
   return roof;
 }
 export class HistoricalWorldRenderer{
