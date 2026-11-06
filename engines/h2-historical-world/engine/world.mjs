@@ -179,7 +179,7 @@ export class HistoricalWorldRenderer{
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.castShadow=true;mesh.receiveShadow=true;
       const roof=new THREE.InstancedMesh(roofGeometry(kind),
-        new THREE.MeshStandardMaterial({color:kind==='tower'?'#825c49':kind==='wall'?'#ab997b':'#855947',roughness:.92}),
+        new THREE.MeshStandardMaterial({color:kind==='tower'?'#825c49':kind==='wall'?'#ab997b':kind==='gate'?'#92765b':new THREE.Color(tint).lerp(new THREE.Color('#885b47'),.64),roughness:.92}),
         buildings.length);
       roof.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       roof.castShadow=true;roof.receiveShadow=true;
