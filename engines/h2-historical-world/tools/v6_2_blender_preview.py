@@ -52,13 +52,39 @@ def render(scene_file, output_file):
     target = Vector((cam["target"][0], cam["target"][2], cam["target"][1]))
     camera.rotation_euler = (target - camera.location).to_track_quat("-Z", "Y").to_euler()
     camera.data.type = "PERSP"
-    camera.data.lens = 36 / (2 * math.tan(math.radians(cam.get("fov", 45))/2))
+    # Three.js uses vertical FOV; Blender AUTO sensor fit crops landscape views.
+    vertical_fov = float(cam.get("fov", 45))
+    if not 1 < vertical_fov < 179:
+        raise ValueError("Camera vertical FOV must be between 1 and 179 degrees")
+    camera.data.sensor_fit = "VERTICAL"
+    camera.data.sensor_height = 24.0
+    camera.data.lens = camera.data.sensor_height / (2 * math.tan(math.radians(vertical_fov) / 2))
     scene.camera = camera
+    # EEVEE requires an explicit World Background shader for environment lighting.
+    if scene.world is None:
+        scene.world = bpy.data.worlds.new("H2 Daylight World")
+    scene.world.use_nodes = True
+    nodes = scene.world.node_tree.nodes
+    background = nodes.get("Background") or nodes.new("ShaderNodeBackground")
+    output = nodes.get("World Output") or nodes.new("ShaderNodeOutputWorld")
+    scene.world.node_tree.links.new(background.outputs["Background"], output.inputs["Surface"])
+    background.inputs["Color"].default_value = (0.64, 0.74, 0.82, 1.0)
+    background.inputs["Strength"].default_value = 0.9
+    # Sun light keeps brightness consistent across the entire town.
+    bpy.ops.object.light_add(type="SUN", location=(0, 0, 250))
+    sun = bpy.context.object
+    sun.name = "H2 daylight sun"
+    sun.rotation_euler = (math.radians(35), math.radians(-25), math.radians(-30))
+    sun.data.energy = 2.5
+    sun.data.angle = math.radians(5)
     bpy.ops.object.light_add(type="AREA", location=(100, -150, 350))
-    bpy.context.object.data.energy = 150000
-    bpy.context.object.data.shape = "DISK"
-    bpy.context.object.data.size = 450
-    scene.world.color = (0.55, 0.6, 0.7)
+    fill = bpy.context.object
+    fill.name = "H2 soft fill"
+    fill.data.energy = 100000
+    fill.data.shape = "DISK"
+    fill.data.size = 500
+    scene.view_settings.view_transform = "AgX"
+    scene.view_settings.exposure = 0.5
     path = Path(output_file).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     scene.render.filepath = str(path)
