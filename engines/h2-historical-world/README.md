@@ -27,6 +27,31 @@ Render test: `npm test`, then `python tools/new_project.py --name visual-v2 --ti
 
 **Scope**: This is a stylized procedural 3D visual improvement, not an accurate historically sourced reconstruction, professional architectural assets, real GIS or photorealism. Evaluate resulting thumbnail/sheet visually before production.
 
+## V3 planned historical city and event timeline
+
+V3 adds a synthetic road-aligned town layout with district metadata, civic landmarks, four gateways and a ring of fortifications in the **final epoch only**. The demo is imaginary, not a claim about an actual ancient city.
+
+- `tools/city_generator.py` creates deterministic houses aligned with primary/secondary streets and river-clearance zones.
+- Stable object IDs make the same history/world editable across epochs.
+- `events` in `history/world.json` support year-indexed `changes: [{id,action}]` with actions `show` and `hide`. Events are replayed chronologically on every frame, so scrubbing backwards is deterministic.
+- Additional schematic `market`, `temple`, and `gate` meshes appear as landmarks.
+- Original V2 worlds without events remain supported.
+
+Try on Windows from the engine directory:
+
+```cmd
+npm install
+npx playwright install chromium
+npm test
+python tools/new_project.py --name city-v3 --title "City V3" --pack historical
+node render.mjs --project projects/city-v3 --sheet --scale 0.5
+node render.mjs --project projects/city-v3 --from 0 --to 24 --scale 0.5
+```
+
+Inspect `projects/city-v3/build/sheets/sheet_01.jpg` and `projects/city-v3/build/preview.mp4`.
+
+**Limitations:** Grid-based zoning is intentionally simplified; fortification geometry is schematic, roads may cross the procedural river without bridges, and no production GIS, authentic architectural assets, damage animation, archaeological verification or AI scene planning is included. For story-specific reconstructions, replace demo geometry with sourced world data.
+
 ## Development
 
 ```bash
