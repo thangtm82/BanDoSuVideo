@@ -4,6 +4,7 @@ Standard-library only. Designed as a stable CLI entry point for H2 Studio.
 All paths are explicit; no shell=True and no silent partial success.
 """
 import argparse
+import datetime
 import json
 import shutil
 import subprocess
@@ -12,6 +13,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
+
+
+def emit(stage, status, **fields):
+    event = {"schema": "h2.studio.progress.v6.4", "stage": stage, "status": status,
+             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(), **fields}
+    print("H2_PROGRESS " + json.dumps(event, ensure_ascii=False), flush=True)
 
 
 def command(args, *, dry_run=False):
@@ -59,15 +66,19 @@ def plan(natural, output_dir, *, frames=240, fps=24, python=sys.executable, dry_
 
 
 def render(natural, camera, output_dir, *, blender, preset="bright_final", threads=4,
-           dry_run=False):
+           dry_run=False, clean_frames=False):
     if not dry_run:
         require_file(natural, "Natural scene")
         require_file(camera, "Camera plan")
     if threads < 1:
         raise ValueError("threads must be positive")
     folder = Path(output_dir).resolve() / "frames"
-    if folder.exists() and any(folder.glob("frame_*.png")):
+    existing = list(folder.glob("frame_*.png")) if folder.exists() else []
+    if existing and not clean_frames:
         raise RuntimeError(f"Frames folder not empty: {folder}. Use a fresh output directory.")
+    if existing and clean_frames and not dry_run:
+        for frame in existing:
+            frame.unlink()
     folder.mkdir(parents=True, exist_ok=True)
     command([blender, "-b", "-t", threads, "--python",
              TOOLS / "v6_3_blender_animation.py", "--", natural, camera, folder, preset],
@@ -102,13 +113,22 @@ def run(args):
             raise FileNotFoundError(f"Blender not found: {args.blender}")
         if not Path(args.ffmpeg).is_file() and not shutil.which(args.ffmpeg):
             raise FileNotFoundError(f"FFmpeg not found: {args.ffmpeg}")
-    if (out / "frames").exists() and any((out / "frames").glob("frame_*.png")):
+    if not args.clean_frames and (out / "frames").exists() and any((out / "frames").glob("frame_*.png")):
         raise RuntimeError(f"Frames folder not empty: {out / 'frames'}. Use a fresh output directory.")
+    emit("scene", "started")
     natural = build(args.scene, out, dry_run=args.dry_run)
+    emit("scene", "completed")
+    emit("camera", "started")
     camera = plan(natural, out, frames=args.frames, fps=args.fps, dry_run=args.dry_run)
+    emit("camera", "completed")
+    emit("render", "started", frames=args.frames)
     folder = render(natural, camera, out, blender=args.blender,
-                    preset=args.preset, threads=args.threads, dry_run=args.dry_run)
+                    preset=args.preset, threads=args.threads, dry_run=args.dry_run,
+                    clean_frames=args.clean_frames)
+    emit("render", "completed", frames=args.frames)
+    emit("encode", "started")
     mp4 = assemble(folder, out, fps=args.fps, ffmpeg=args.ffmpeg, dry_run=args.dry_run)
+    emit("encode", "completed", mp4=str(mp4))
     manifest = {"schema": "h2.studio.pipeline.v6.4", "status": "planned" if args.dry_run else "completed",
                 "scene": str(natural), "camera": str(camera), "frames_dir": str(folder),
                 "mp4": str(mp4), "frames": args.frames, "fps": args.fps,
@@ -131,6 +151,7 @@ def main():
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--preset", default="bright_final")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--clean-frames", action="store_true", help="Remove existing frame_*.png in the selected output folder")
     args = parser.parse_args()
     try:
         run(args)
