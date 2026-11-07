@@ -176,7 +176,7 @@
                     </WrapPanel>
                     <StackPanel Grid.Row="6" Margin="4">
                         <TextBlock Text="Kịch bản lịch sử (nhập mô tả hoặc dán bản nháp Scene Plan JSON)" FontWeight="SemiBold"/>
-                        <Button Content="Tạo Scene Plan nháp (cần duyệt)" Click="WorldPlanClick" HorizontalAlignment="Left" Margin="0,5" Padding="12,5"/>
+                        <WrapPanel Margin="0,5"><Button Content="Lưu nháp thủ công" Click="WorldPlanClick" Padding="12,5"/><Button Content="AI tạo Scene Plan" Click="WorldAiPlanClick" Margin="8,0" Padding="12,5"/><TextBox x:Name="WorldAiEndpoint" Width="290" Text="https://api.openai.com/v1/chat/completions" Margin="8,0"/><TextBox x:Name="WorldAiModel" Width="110" Text="gpt-4.1-mini"/></WrapPanel>
                     </StackPanel>
                     <TextBox Grid.Row="7" x:Name="WorldScriptText" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="4"/>
                 </Grid>
