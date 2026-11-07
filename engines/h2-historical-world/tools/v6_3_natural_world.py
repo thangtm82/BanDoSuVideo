@@ -46,7 +46,7 @@ def upgrade(scene, resolution=49, extent=600):
     for j in range(resolution-1):
         for i in range(resolution-1):
             a=j*resolution+i
-            triangles.extend([[a,a+1,a+resolution+1],[a,a+resolution+1,a+resolution]])
+            triangles.extend([[a,a+resolution+1,a+1],[a,a+resolution,a+resolution+1]])
     env["terrain_mesh"]={"vertices":vertices,"triangles":triangles,"color":"#758265"}
     # A raised crossing is visible in both engines. Geometry is deliberately
     # primitive; a true structural arch requires a later asset pass.
