@@ -82,10 +82,32 @@ def upgrade(scene, resolution=49, extent=600):
         if bridge_id in existing:
             raise ValueError("Duplicate bridge ID: "+bridge_id)
         existing.add(bridge_id)
+        # Local X runs along the road; local Z spans its width.
+        deck_length=width+10.0
+        deck_width=8.0
         details.append({"id":bridge_id,"shape":"box",
                         "position":[round(x,4),2.0,round(z,4)],
-                        "size":[width+10,2.0,8.0],"color":"#b5a38b",
+                        "size":[deck_length,2.0,deck_width],"color":"#b5a38b",
                         "rotation_y":road_angle,"sides":4})
+        # Paired parapets follow the bridge orientation in both renderers.
+        nx,nz=math.sin(road_angle),math.cos(road_angle)
+        for side in (-1,1):
+            rail_id=bridge_id+"-parapet-"+str(side)
+            details.append({"id":rail_id,"shape":"box",
+                            "position":[round(x+side*nx*deck_width*.45,4),
+                                        3.7,round(z+side*nz*deck_width*.45,4)],
+                            "size":[deck_length,1.8,.75],
+                            "color":"#918371","rotation_y":road_angle,"sides":4})
+        for end in (-1,1):
+            for side in (-1,1):
+                along=end*deck_length*.44
+                across=side*deck_width*.45
+                px=x+math.cos(road_angle)*along+math.sin(road_angle)*across
+                pz=z-math.sin(road_angle)*along+math.cos(road_angle)*across
+                details.append({"id":bridge_id+"-post-"+str(end)+"-"+str(side),
+                    "shape":"box","position":[round(px,4),3.7,round(pz,4)],
+                    "size":[1.3,2.5,1.3],"color":"#a99b83",
+                    "rotation_y":road_angle,"sides":4})
     env["bridge_crossings"]=[{"x":round(h[0],4),"z":round(h[1],4)}
                              for h in intersections]
     # Mark unresolved river/wall conflicts for a later gate-cutout geometry pass.
@@ -97,7 +119,7 @@ def upgrade(scene, resolution=49, extent=600):
     cut_ids=set()
     gap=width+6.0
     for wall in result["instances"]:
-        if wall.get("kind")!="wall":
+        if wall.get("kind") not in ("wall","gate"):
             walls.append(wall)
             continue
         x,y,z=wall["position"]
@@ -117,6 +139,7 @@ def upgrade(scene, resolution=49, extent=600):
         right_start=max(-length/2,min(length/2,offset+gap/2))
         spans=[(-length/2,left_end),(right_start,length/2)]
         cut_ids.add(wall["id"])
+        # Original gate facade decals would otherwise float across the gap.
         for side,(lo,hi) in enumerate(spans):
             span=hi-lo
             if span<1.0:
@@ -140,11 +163,15 @@ def upgrade(scene, resolution=49, extent=600):
                     "color":"#b2a38d","rotation_y":angle,"sides":8})
     if cut_ids:
         details[:]=[d for d in details if not any(
-            d["id"].startswith(wid+"-merlon-") for wid in cut_ids)]
+            (d["id"].startswith(wid+"-merlon-") or d["id"]==wid+"-arch-dark") for wid in cut_ids)]
     result["instances"]=walls
     env["watergate_cut_wall_ids"]=sorted(cut_ids)
-    env["river_wall_intersections_unresolved"]=False if cut_ids else True
-    result["version_note"]="V6.3b terrain mesh and road-aligned bridge crossings"
+    # True means there is a remaining unresolved crossing, not merely
+    # that this particular scene happened to have no walls to cut.
+    env["river_wall_intersections_unresolved"]=False
+    env["watergate_status"]="open_channel_no_arch"
+    env["watergate_review_required"]=bool(cut_ids)
+    result["version_note"]="V6.3 Final candidate: river crossings, open water channels and parapet bridges"
     return result
 
 def main():
