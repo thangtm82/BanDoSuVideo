@@ -84,6 +84,8 @@ def render(natural, camera, output_dir, *, blender, preset="bright_final", threa
 def assemble(frames_dir, output_dir, *, fps=24, ffmpeg="ffmpeg",
              python=sys.executable, dry_run=False):
     mp4 = Path(output_dir).resolve() / "v6_4_final.mp4"
+    if not dry_run and not Path(ffmpeg).is_file() and not shutil.which(ffmpeg):
+        raise FileNotFoundError(f"FFmpeg not found: {ffmpeg}")
     command([python, TOOLS / "v6_3_cinematic.py", "assemble", frames_dir, mp4,
              "--fps", fps], dry_run=dry_run)
     if not dry_run:
@@ -104,7 +106,7 @@ def run(args):
     camera = plan(natural, out, frames=args.frames, fps=args.fps, dry_run=args.dry_run)
     folder = render(natural, camera, out, blender=args.blender,
                     preset=args.preset, threads=args.threads, dry_run=args.dry_run)
-    mp4 = assemble(folder, out, fps=args.fps, dry_run=args.dry_run)
+    mp4 = assemble(folder, out, fps=args.fps, ffmpeg=args.ffmpeg, dry_run=args.dry_run)
     manifest = {"schema": "h2.studio.pipeline.v6.4", "status": "planned" if args.dry_run else "completed",
                 "scene": str(natural), "camera": str(camera), "frames_dir": str(folder),
                 "mp4": str(mp4), "frames": args.frames, "fps": args.fps,
