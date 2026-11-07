@@ -21,8 +21,17 @@ const light=new THREE.DirectionalLight(0xffefd9,daylight.sun_energy??2.2);light.
 light.shadow.mapSize.set(2048,2048);light.shadow.camera.left=-400;light.shadow.camera.right=400;
 light.shadow.camera.top=400;light.shadow.camera.bottom=-400;scene.add(light);
 scene.add(new THREE.AmbientLight(0xffffff,daylight.ambient_strength??0.7));
-const ground=new THREE.Mesh(new THREE.BoxGeometry(1200,2,1200),new THREE.MeshStandardMaterial({color:daylight.ground_color||'#758265',roughness:1}));
-ground.position.y=-1;ground.receiveShadow=true;scene.add(ground);
+if(env.terrain_mesh){
+ const terrain=env.terrain_mesh,vertices=terrain.vertices.flat(),indices=terrain.triangles.flat();
+ const geometry=new THREE.BufferGeometry();
+ geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+ geometry.setIndex(indices);geometry.computeVertexNormals();
+ const ground=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({color:terrain.color||'#758265',roughness:1,side:THREE.DoubleSide}));
+ ground.receiveShadow=true;scene.add(ground);
+}else{
+ const ground=new THREE.Mesh(new THREE.BoxGeometry(1200,2,1200),new THREE.MeshStandardMaterial({color:daylight.ground_color||'#758265',roughness:1}));
+ ground.position.y=-1;ground.receiveShadow=true;scene.add(ground);
+}
 const mats=new Map();
 for(const n of world.instances){
  const key=n.color;
