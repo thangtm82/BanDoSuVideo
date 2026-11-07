@@ -26,12 +26,22 @@ class WorldTests(unittest.TestCase):
         terrain=a["environment"]["terrain_mesh"]
         self.assertEqual(len(terrain["vertices"]),81)
         self.assertEqual(len(terrain["triangles"]),128)
-        self.assertEqual(len(a["details"]),1)
+        self.assertEqual(len(a["details"]),0)
         # First triangle must face upward in canonical Y-up coordinates.
         v=terrain["vertices"];i,j,k=terrain["triangles"][0]
         ab=[v[j][n]-v[i][n] for n in range(3)]
         ac=[v[k][n]-v[i][n] for n in range(3)]
         self.assertGreater(ab[2]*ac[0]-ab[0]*ac[2],0)
+    def test_bridge_at_real_road_crossing(self):
+        scene=self.scene()
+        scene["environment"]["roads"]=[{"id":"main","points":[[0,0,-50],[0,0,50]],"width":5}]
+        upgraded=natural.upgrade(scene,resolution=9)
+        self.assertEqual(len(upgraded["environment"]["bridge_crossings"]),1)
+        self.assertEqual(upgraded["details"][0]["id"],"v6_3_bridge_0")
+        self.assertAlmostEqual(upgraded["details"][0]["position"][0],0)
+        self.assertAlmostEqual(upgraded["details"][0]["position"][2],0)
+    def test_no_decorative_bridge_without_road(self):
+        self.assertFalse(natural.upgrade(self.scene(),resolution=9)["environment"]["bridge_crossings"])
     def test_bad_inputs(self):
         with self.assertRaises(ValueError): natural.upgrade(self.scene(),resolution=10)
         scene=self.scene();scene["environment"]["river"]["points"]=[]
