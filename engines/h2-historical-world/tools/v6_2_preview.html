@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>H2 V6.2 Historical World Preview</title>
+<style>body{margin:0;background:#151b20;color:white;font:14px sans-serif}#info{position:absolute;top:12px;left:12px;padding:12px;background:#182129cc;border-radius:8px}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head><body><div id="info">H2 V6.2 • procedural blockout • <span id="status">loading</span><div>Drag to orbit, scroll to zoom</div></div>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+const params=new URLSearchParams(location.search);
+const source=params.get('scene')||'../../build/v6_2_scene.json';
+const response=await fetch(source);
+if(!response.ok)throw Error('Scene JSON fetch failed: '+response.status);
+const world=await response.json();
+const scene=new THREE.Scene();scene.background=new THREE.Color('#b6c6ce');
+const env=world.environment||{};const daylight=env.lighting||{};
+const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,5000);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;
+document.body.appendChild(renderer.domElement);
+const light=new THREE.DirectionalLight(0xffefd9,daylight.sun_energy??2.2);light.position.set(100,300,180);light.castShadow=true;
+light.shadow.mapSize.set(2048,2048);light.shadow.camera.left=-400;light.shadow.camera.right=400;
+light.shadow.camera.top=400;light.shadow.camera.bottom=-400;scene.add(light);
+scene.add(new THREE.AmbientLight(0xffffff,daylight.ambient_strength??0.7));
+const ground=new THREE.Mesh(new THREE.BoxGeometry(1200,2,1200),new THREE.MeshStandardMaterial({color:daylight.ground_color||'#758265',roughness:1}));
+ground.position.y=-1;ground.receiveShadow=true;scene.add(ground);
+const mats=new Map();
+for(const n of world.instances){
+ const key=n.color;
+ if(!mats.has(key))mats.set(key,new THREE.MeshStandardMaterial({color:key,roughness:.85}));
+ const mesh=new THREE.Mesh(new THREE.BoxGeometry(...n.dimensions),mats.get(key));
+ mesh.name=n.id;mesh.position.set(...n.position);mesh.rotation.y=n.rotation_y;
+ mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
+ if(n.roof?.style==="hip"){
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(1,n.roof.height,4),
+    new THREE.MeshStandardMaterial({color:n.roof.color,roughness:.9}));
+  roof.name=n.id+"-roof";
+  roof.scale.set(n.dimensions[0]/Math.SQRT2,1,n.dimensions[2]/Math.SQRT2);
+  roof.position.set(n.position[0],n.position[1]+n.dimensions[1]/2+n.roof.height/2,n.position[2]);
+  roof.rotation.y=n.rotation_y+Math.PI/4;
+  roof.castShadow=true;roof.receiveShadow=true;scene.add(roof);
+ }
+}
+for(const d of world.details||[]){
+ const geo=d.shape==='box' ? new THREE.BoxGeometry(...d.size)
+  : new THREE.ConeGeometry(1,d.size[1],d.sides||8);
+ if(d.shape==='cone')geo.scale(d.size[0]/2,1,d.size[2]/2);
+ const obj=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:d.color,roughness:.88}));
+ obj.name=d.id;obj.position.set(...d.position);obj.rotation.y=d.rotation_y||0;
+ obj.castShadow=true;obj.receiveShadow=true;scene.add(obj);
+}
+function ribbon(points,width,color,height=.12){
+ if(points.length<2)return;
+ const vertices=[],indices=[];
+ for(let i=0;i<points.length;i++){
+  const p=points[i],prev=points[Math.max(0,i-1)],next=points[Math.min(points.length-1,i+1)];
+  const dx=next[0]-prev[0],dz=next[2]-prev[2],len=Math.hypot(dx,dz)||1;
+  const nx=-dz/len*width/2,nz=dx/len*width/2;
+  vertices.push(p[0]+nx,height,p[2]+nz,p[0]-nx,height,p[2]-nz);
+  if(i){const k=i*2;indices.push(k-2,k-1,k+1,k-2,k+1,k);}
+ }
+ const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+ geo.setIndex(indices);geo.computeVertexNormals();
+ const mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color,roughness:.92,side:THREE.DoubleSide}));
+ mesh.receiveShadow=true;scene.add(mesh);
+}
+for(const road of env.roads||[])ribbon(road.points,road.width||5,road.color||'#aa9678');
+if(env.river?.points)ribbon(env.river.points,env.river.width||14,env.river.color||'#4b899d',.18);
+const shot=(world.cameras||[])[0];
+camera.fov=shot?.fov||45;camera.updateProjectionMatrix();
+camera.position.set(...(shot?.position||[520,260,500]));
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.target.set(...(shot?.target||[0,0,0]));controls.update();
+document.getElementById('status').textContent=world.instances.length+' structures';
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera)}animate();
+</script></body></html>
