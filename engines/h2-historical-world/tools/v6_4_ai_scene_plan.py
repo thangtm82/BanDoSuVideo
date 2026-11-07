@@ -40,7 +40,7 @@ def validate(plan):
 
 def generate(script, *, endpoint, model, key, timeout=120):
     if not key: raise ValueError("Missing API key")
-    if not endpoint.startswith("https://") and not endpoint.startswith("http://localhost:"):
+    if not endpoint.startswith("https://") and not endpoint.startswith("http://localhost:") and not endpoint.startswith("http://127.0.0.1:"):
         raise ValueError("Use HTTPS API endpoint (or localhost for local providers)")
     payload = {"model": model, "temperature": 0.2,
                "messages": [{"role": "system", "content": SYSTEM},
