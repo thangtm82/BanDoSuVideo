@@ -12,15 +12,16 @@ const response=await fetch(source);
 if(!response.ok)throw Error('Scene JSON fetch failed: '+response.status);
 const world=await response.json();
 const scene=new THREE.Scene();scene.background=new THREE.Color('#b6c6ce');
+const env=world.environment||{};const daylight=env.lighting||{};
 const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,5000);
 const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(innerWidth,innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;
 document.body.appendChild(renderer.domElement);
-const light=new THREE.DirectionalLight(0xffefd9,2.5);light.position.set(100,300,180);light.castShadow=true;
+const light=new THREE.DirectionalLight(0xffefd9,daylight.sun_energy??2.2);light.position.set(100,300,180);light.castShadow=true;
 light.shadow.mapSize.set(2048,2048);light.shadow.camera.left=-400;light.shadow.camera.right=400;
 light.shadow.camera.top=400;light.shadow.camera.bottom=-400;scene.add(light);
-scene.add(new THREE.AmbientLight(0xffffff,1.1));
-const ground=new THREE.Mesh(new THREE.BoxGeometry(1200,2,1200),new THREE.MeshStandardMaterial({color:'#6c755c',roughness:1}));
+scene.add(new THREE.AmbientLight(0xffffff,daylight.ambient_strength??0.7));
+const ground=new THREE.Mesh(new THREE.BoxGeometry(1200,2,1200),new THREE.MeshStandardMaterial({color:daylight.ground_color||'#758265',roughness:1}));
 ground.position.y=-1;ground.receiveShadow=true;scene.add(ground);
 const mats=new Map();
 for(const n of world.instances){
@@ -39,13 +40,23 @@ for(const n of world.instances){
   roof.castShadow=true;roof.receiveShadow=true;scene.add(roof);
  }
 }
-function line(points,color,width=2){
+function ribbon(points,width,color,height=.12){
  if(points.length<2)return;
- const geometry=new THREE.BufferGeometry().setFromPoints(points.map(p=>new THREE.Vector3(p[0],.18,p[2])));
- const obj=new THREE.Line(geometry,new THREE.LineBasicMaterial({color,linewidth:width}));scene.add(obj);
+ const vertices=[],indices=[];
+ for(let i=0;i<points.length;i++){
+  const p=points[i],prev=points[Math.max(0,i-1)],next=points[Math.min(points.length-1,i+1)];
+  const dx=next[0]-prev[0],dz=next[2]-prev[2],len=Math.hypot(dx,dz)||1;
+  const nx=-dz/len*width/2,nz=dx/len*width/2;
+  vertices.push(p[0]+nx,height,p[2]+nz,p[0]-nx,height,p[2]-nz);
+  if(i){const k=i*2;indices.push(k-2,k-1,k+1,k-2,k+1,k);}
+ }
+ const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+ geo.setIndex(indices);geo.computeVertexNormals();
+ const mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color,roughness:.92,side:THREE.DoubleSide}));
+ mesh.receiveShadow=true;scene.add(mesh);
 }
-for(const road of world.roads||[])line(road.points,'#b1a18b');
-line((world.river||[]).map(x=>x.position),'#548caa',3);
+for(const road of env.roads||[])ribbon(road.points,road.width||5,road.color||'#aa9678');
+if(env.river?.points)ribbon(env.river.points,env.river.width||14,env.river.color||'#4b899d',.18);
 const shot=(world.cameras||[])[0];
 camera.fov=shot?.fov||45;camera.updateProjectionMatrix();
 camera.position.set(...(shot?.position||[520,260,500]));
