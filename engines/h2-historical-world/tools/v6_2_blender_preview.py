@@ -54,7 +54,39 @@ def render(scene_file, output_file):
     ground = bpy.context.object
     ground.name = "H2 terrain blockout"
     ground.dimensions = (1200, 1200, 2)
-    ground.data.materials.append(material("#6c755c"))
+    ground.data.materials.append(material(env.get("lighting", {}).get("ground_color", "#758265")))
+    env = scene_data.get("environment", {})
+    def strip_mesh(name, points, width, color, elevation=0.12):
+        """Generate a real flat ribbon mesh from Y-up path coordinates."""
+        if len(points) < 2:
+            return
+        verts = []
+        faces = []
+        for i, p in enumerate(points):
+            before = points[max(0, i - 1)]
+            after = points[min(len(points) - 1, i + 1)]
+            vx, vz = after[0] - before[0], after[2] - before[2]
+            length = math.hypot(vx, vz)
+            if length < 1e-6:
+                vx, vz, length = 1.0, 0.0, 1.0
+            nx, nz = -vz / length * width / 2, vx / length * width / 2
+            verts.extend([(p[0] + nx, p[2] + nz, elevation),
+                          (p[0] - nx, p[2] - nz, elevation)])
+            if i:
+                k = 2 * i
+                faces.append((k - 2, k - 1, k + 1, k))
+        mesh = bpy.data.meshes.new(name + "-mesh")
+        mesh.from_pydata(verts, [], faces)
+        mesh.update()
+        obj = bpy.data.objects.new(name, mesh)
+        bpy.context.collection.objects.link(obj)
+        obj.data.materials.append(material(color))
+    for road in env.get("roads", []):
+        strip_mesh("road-" + str(road["id"]), road["points"],
+                   float(road.get("width", 5)), road.get("color", "#aa9678"), 0.12)
+    river = env.get("river", {})
+    strip_mesh("river", river.get("points", []), float(river.get("width", 14)),
+               river.get("color", "#4b899d"), 0.18)
     cameras = scene_data.get("cameras", [])
     cam = cameras[0] if cameras else {"position": [520,260,500], "target": [0,0,0], "fov": 45}
     bpy.ops.object.camera_add(location=(cam["position"][0], cam["position"][2], cam["position"][1]))
@@ -79,13 +111,13 @@ def render(scene_file, output_file):
     output = nodes.get("World Output") or nodes.new("ShaderNodeOutputWorld")
     scene.world.node_tree.links.new(background.outputs["Background"], output.inputs["Surface"])
     background.inputs["Color"].default_value = (0.64, 0.74, 0.82, 1.0)
-    background.inputs["Strength"].default_value = 0.45
+    background.inputs["Strength"].default_value = float(env.get("lighting", {}).get("ambient_strength", 0.7))
     # Sun light keeps brightness consistent across the entire town.
     bpy.ops.object.light_add(type="SUN", location=(0, 0, 250))
     sun = bpy.context.object
     sun.name = "H2 daylight sun"
     sun.rotation_euler = (math.radians(35), math.radians(-25), math.radians(-30))
-    sun.data.energy = 1.8
+    sun.data.energy = float(env.get("lighting", {}).get("sun_energy", 2.2))
     sun.data.angle = math.radians(5)
     bpy.ops.object.light_add(type="AREA", location=(100, -150, 350))
     fill = bpy.context.object
@@ -94,7 +126,7 @@ def render(scene_file, output_file):
     fill.data.shape = "DISK"
     fill.data.size = 500
     scene.view_settings.view_transform = "AgX"
-    scene.view_settings.exposure = -0.5
+    scene.view_settings.exposure = float(env.get("lighting", {}).get("exposure", 0.0))
     path = Path(output_file).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     scene.render.filepath = str(path)
