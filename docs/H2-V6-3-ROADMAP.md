@@ -116,3 +116,29 @@ python -m unittest discover -s tests -p "test_v6_3_*.py" -v
 A visual acceptance pass must confirm actual bridge/road alignment, absence
 of floating vegetation, river/wall interactions and camera collision. This
 change has not yet been validated in a live Blender render.
+
+## V6.3 Final watergate geometry candidate
+
+The natural-world upgrade now splits river-intersecting `wall` instances
+into shorter left/right spans, removes obsolete merlons and rebuilds
+battlements on each span. The gap is `river.width + 6` metres.
+The `environment.watergate_cut_wall_ids` array records affected walls.
+
+This is an **open water passage**, not a fully modeled arched watergate:
+stone piers, lintel/arch, iron grilles and water hydraulics are deferred.
+The flag `river_wall_intersections_unresolved` is only false when at
+least one wall is cut; it does not certify all intersections are resolved.
+
+### Verify geometry before another 240-frame render
+
+```cmd
+python tools\v6_3_natural_world.py build\v6_3_scene.json build\v6_3_natural.json
+python -m unittest discover -s tests -p "test_v6_3_*.py" -v
+"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b -t 4 --python tools\v6_2_blender_preview.py -- build\v6_3_natural.json build\v6_3_watergate.png bright_final
+```
+
+Inspect `build\v6_3_watergate.png` and the Three.js preview from the
+same JSON. Confirm the river passes through an actual wall gap and that
+there are no leftover floating battlements. If the river intersects a
+`gate` instance or multiple walls, the current pass may require more
+work. Do not mark PR ready until Blender/Three.js and unit tests pass.
