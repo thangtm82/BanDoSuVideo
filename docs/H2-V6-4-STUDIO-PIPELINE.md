@@ -76,3 +76,37 @@ desktop SDK. No binaries or third-party assets are committed.
 
 These checks have not been run by the GitHub connector. Keep the PR in
 Draft until the remaining work is completed and validated.
+
+## V6.4-C — Embedded WPF tab and AI draft planning
+
+The existing `src/BanDoSu.Desktop/MainWindow.xaml` now includes a
+**Historical World 3D** tab. Enter the absolute path to
+`engines/h2-historical-world` if the repository cannot be autodetected.
+Scene JSON must already be V6.2-compatible. Rendering uses the existing
+Python/Blender pipeline. A new output directory is recommended.
+
+The AI button uses an OpenAI-compatible chat-completions endpoint and
+requires `H2_AI_API_KEY` in the process environment. Example Windows CMD:
+
+```cmd
+set H2_AI_API_KEY=YOUR_KEY
+dotnet run --project src\BanDoSu.Desktop\BanDoSu.Desktop.csproj
+```
+
+The AI-generated `v6_4_scene_plan_ai_draft.json` is **review-only**.
+It does **not** generate a V6.2-compatible 3D scene, and the Render MP4
+button still requires a separate existing V6.2 scene JSON. Do not use
+the draft as the Scene JSON input.
+
+### Windows integration QA
+
+```cmd
+python -m unittest discover -s engines\h2-historical-world\tests -p "test_v6_4_*.py" -v
+dotnet build src\BanDoSu.Desktop\BanDoSu.Desktop.csproj -c Release
+dotnet build engines\h2-historical-world\integration\H2HistoricalWorld.RenderApp\H2HistoricalWorld.RenderApp.csproj -c Release
+```
+
+GitHub Actions workflow `.github/workflows/h2-v6-4-windows.yml`
+performs the offline Python tests and both builds on a Windows runner.
+The GitHub connector cannot execute Blender or verify desktop UI
+interaction; a local 48-frame render and cancellation test remain required.
