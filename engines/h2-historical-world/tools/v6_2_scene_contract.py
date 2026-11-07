@@ -68,12 +68,29 @@ def instances(world):
         })
     return output
 
+def environment(world):
+    """Shared Y-up, metre-based geometry descriptors for both renderers."""
+    roads = []
+    for road in world.get("roads", []):
+        points = road.get("points", [])
+        if len(points) >= 2:
+            roads.append({"id": road["id"], "points": points, "width": 5.0,
+                          "color": "#aa9678"})
+    river = [item["position"] for item in world.get("river", [])]
+    return {
+        "roads": roads,
+        "river": {"points": river, "width": 14.0, "color": "#4b899d"},
+        "lighting": {"sun_energy": 2.2, "ambient_strength": 0.7,
+                     "exposure": 0.0, "ground_color": "#758265"},
+    }
+
 def write_scene(world_path, output_path):
     world = json.loads(Path(world_path).read_text(encoding="utf-8-sig"))
     payload = {"schema": "h2.historical_world.preview.v6.2", "instances": instances(world),
                "roads": world.get("roads", []), "river": world.get("river", []),
                "cameras": world.get("cameras", []), "asset_catalog": world.get("asset_catalog", {}),
-               "evidence_status": world.get("evidence_status")}
+               "evidence_status": world.get("evidence_status"),
+               "environment": environment(world)}
     target = Path(output_path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
