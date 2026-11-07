@@ -1765,8 +1765,57 @@ public partial class MainWindow : Window
             if (!Path.IsPathRooted(output)) output = Path.Combine(engine, output);
             if (WorldUseProjectDuration.IsChecked == true)
             {
-                WorldDurationChanged(sender, e);
-                throw new InvalidOperationException("Chế độ theo thời lượng dự án chỉ tạo timeline, chưa render được Scene Plan đa cảnh. Bấm Đồng bộ timeline Scene Plan; muốn test một cảnh, bỏ chọn Theo thời lượng dự án.");
+                var planFile = Path.Combine(output, "v6_4_scene_plan_ai_draft.json");
+                if (!File.Exists(planFile))
+                    throw new FileNotFoundException("Chưa có AI Scene Plan. Hãy tạo Scene Plan trước.", planFile);
+                if (!File.Exists(scene))
+                    throw new FileNotFoundException("Cần scene mẫu V6.2 để dựng blockout đa cảnh.", scene);
+                if (!int.TryParse(WorldFps.Text, out var projectFps) || projectFps < 1)
+                    throw new ArgumentException("FPS phải lớn hơn 0.");
+                var audioDir = WorldAudioDirectory.Text.Trim();
+                if (audioDir.Length > 0 && !Directory.Exists(audioDir))
+                    throw new DirectoryNotFoundException("Không tìm thấy thư mục audio: " + audioDir);
+                var multiOutput = Path.Combine(output, "multi_shot_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+                var start = new ProcessStartInfo(_settings.PythonExecutable)
+                {
+                    UseShellExecute = false, RedirectStandardOutput = true,
+                    RedirectStandardError = true, CreateNoWindow = true,
+                    WorkingDirectory = engine
+                };
+                foreach (var arg in new[] {
+                    Path.Combine(engine, "tools", "v6_4_multishot.py"),
+                    "--plan", planFile, "--template-scene", scene,
+                    "--output", multiOutput, "--fps", projectFps.ToString(),
+                    "--blender", WorldBlenderPath.Text.Trim(),
+                    "--ffmpeg", _settings.FfmpegExecutable })
+                    start.ArgumentList.Add(arg);
+                if (audioDir.Length > 0)
+                {
+                    start.ArgumentList.Add("--audio-dir");
+                    start.ArgumentList.Add(audioDir);
+                }
+                using var process = Process.Start(start) ??
+                    throw new InvalidOperationException("Không khởi động được multi-shot renderer.");
+                using var registration = _worldCts.Token.Register(() =>
+                {
+                    try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+                    catch (InvalidOperationException) { }
+                });
+                WorldStatus.Text = "Đang render các cảnh...";
+                var stdout = process.StandardOutput.ReadToEndAsync();
+                var stderr = process.StandardError.ReadToEndAsync();
+                await process.WaitForExitAsync();
+                var log = await stdout;
+                var errors = await stderr;
+                Log(log);
+                _worldCts.Token.ThrowIfCancellationRequested();
+                if (process.ExitCode != 0)
+                    throw new InvalidOperationException("Multi-shot render thất bại: " + errors);
+                _worldMp4 = Path.Combine(multiOutput, "v6_4_project.mp4");
+                if (!File.Exists(_worldMp4))
+                    throw new FileNotFoundException("Không tìm thấy MP4 sau render.", _worldMp4);
+                WorldStatus.Text = "Hoàn tất render đa cảnh (blockout)";
+                return;
             }
             if (!int.TryParse(WorldFrames.Text, out var frameCount) || frameCount < 2 ||
                 !int.TryParse(WorldFps.Text, out var fps) || fps < 1)
