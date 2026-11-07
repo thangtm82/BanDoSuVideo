@@ -50,6 +50,25 @@ def render(scene_file, output_file):
             top.name = inst["id"] + "-roof"
             top.scale = (dx / math.sqrt(2), dz / math.sqrt(2), 1)
             top.data.materials.append(material(roof["color"]))
+    # Shared procedural details, identical IDs/transforms in both renderers.
+    for detail in scene_data.get("details", []):
+        x, y, z = detail["position"]
+        dx, dy, dz = detail["size"]
+        if detail["shape"] == "box":
+            bpy.ops.mesh.primitive_cube_add(size=1, location=(x, z, y))
+            part = bpy.context.object
+            part.dimensions = (dx, dz, dy)
+            part.rotation_euler.z = -float(detail.get("rotation_y", 0))
+        elif detail["shape"] == "cone":
+            bpy.ops.mesh.primitive_cone_add(vertices=int(detail.get("sides", 8)),
+                radius1=1, radius2=0, depth=dy, location=(x, z, y))
+            part = bpy.context.object
+            part.scale = (dx/2, dz/2, 1)
+            part.rotation_euler.z = -float(detail.get("rotation_y", 0))
+        else:
+            raise ValueError("Unsupported detail shape: " + str(detail["shape"]))
+        part.name = detail["id"]
+        part.data.materials.append(material(detail["color"]))
     bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, -1))
     ground = bpy.context.object
     ground.name = "H2 terrain blockout"
