@@ -1854,9 +1854,9 @@ public partial class MainWindow : Window
 
     private void WorldBrowseEngineClick(object sender, RoutedEventArgs e)
     {
-        using var dialog = new System.Windows.Forms.FolderBrowserDialog { Description = "Chọn thư mục h2-historical-world" };
-        if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-            WorldEnginePath.Text = dialog.SelectedPath;
+        var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Chọn thư mục h2-historical-world" };
+        if (dialog.ShowDialog(this) == true)
+            WorldEnginePath.Text = dialog.FolderName;
     }
 
     private void WorldCheckEnvironmentClick(object sender, RoutedEventArgs e)
