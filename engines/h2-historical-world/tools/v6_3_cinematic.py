@@ -17,6 +17,12 @@ def camera_path(scene, frames=120, fps=24):
     base=cameras[0] if cameras else {"position":[520,260,500],"target":[0,0,0],"fov":45}
     start=base["position"]
     target=base["target"]
+    if scene.get("instances"):
+        landmarks=[o for o in scene["instances"] if o.get("kind") in ("temple","market")]
+        if landmarks:
+            landmark=max(landmarks,key=lambda o:o.get("dimensions",[0,0,0])[1])
+            target=list(landmark["position"])
+            target[1]+=landmark["dimensions"][1]*.25
     # Three continuous phases: establishing orbit, dolly-in, close fly-by.
     # Smoothstep avoids abrupt speed changes at phase boundaries.
     dx,dz=start[0]-target[0],start[2]-target[2]
@@ -45,7 +51,7 @@ def camera_path(scene, frames=120, fps=24):
             u=smooth((t-.76)/.24)
             distance=radius*(.50-.08*u)
             angle=initial+math.radians(17+20*u)
-            elevation=start[1]-63-12*u
+            elevation=max(target[1]+35,start[1]-63-12*u)
         shots.append({"frame":frame+1,"phase":phase,
                       "position":[round(target[0]+distance*math.cos(angle),4),
                                   round(elevation,4),
