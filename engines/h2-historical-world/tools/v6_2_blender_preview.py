@@ -7,7 +7,7 @@ import math
 import sys
 from pathlib import Path
 
-def render(scene_file, output_file):
+def render(scene_file, output_file, lighting_preset="daylight"):
     import bpy
     from mathutils import Vector
     scene_data = json.loads(Path(scene_file).read_text(encoding="utf-8"))
@@ -123,6 +123,19 @@ def render(scene_file, output_file):
     camera.data.sensor_height = 24.0
     camera.data.lens = camera.data.sensor_height / (2 * math.tan(math.radians(vertical_fov) / 2))
     scene.camera = camera
+    # Lighting 3.0: configurable studio daylight; defaults prioritize readable
+    # shadows and warm direct illumination without washing out albedo colors.
+    presets = {
+        "daylight": {"world": 0.50, "sun": 2.6, "fill": 12000,
+                     "exposure": 0.10, "sky": (0.42, 0.57, 0.73, 1)},
+        "bright": {"world": 0.65, "sun": 3.1, "fill": 18000,
+                   "exposure": 0.20, "sky": (0.48, 0.62, 0.78, 1)},
+        "dramatic": {"world": 0.30, "sun": 2.9, "fill": 5000,
+                     "exposure": 0.0, "sky": (0.28, 0.39, 0.53, 1)},
+    }
+    if lighting_preset not in presets:
+        raise ValueError("Unknown lighting preset: " + lighting_preset)
+    lighting = presets[lighting_preset]
     # EEVEE requires an explicit World Background shader for environment lighting.
     if scene.world is None:
         scene.world = bpy.data.worlds.new("H2 Daylight World")
@@ -131,26 +144,28 @@ def render(scene_file, output_file):
     background = nodes.get("Background") or nodes.new("ShaderNodeBackground")
     output = nodes.get("World Output") or nodes.new("ShaderNodeOutputWorld")
     scene.world.node_tree.links.new(background.outputs["Background"], output.inputs["Surface"])
-    background.inputs["Color"].default_value = (0.35, 0.46, 0.58, 1.0)
-    background.inputs["Strength"].default_value = min(0.45, float(env.get("lighting", {}).get("ambient_strength", 0.7)))
+    background.inputs["Color"].default_value = lighting["sky"]
+    background.inputs["Strength"].default_value = lighting["world"]
     # Sun light keeps brightness consistent across the entire town.
     bpy.ops.object.light_add(type="SUN", location=(0, 0, 250))
     sun = bpy.context.object
     sun.name = "H2 daylight sun"
-    sun.rotation_euler = (math.radians(35), math.radians(-25), math.radians(-30))
-    sun.data.energy = min(2.2, float(env.get("lighting", {}).get("sun_energy", 2.2)))
-    sun.data.angle = math.radians(5)
+    sun.rotation_euler = (math.radians(28), math.radians(-28), math.radians(-35))
+    sun.data.energy = lighting["sun"]
+    sun.data.color = (1.0, 0.91, 0.79)
+    sun.data.angle = math.radians(2.5)
     bpy.ops.object.light_add(type="AREA", location=(100, -150, 350))
     fill = bpy.context.object
     fill.name = "H2 soft fill"
-    fill.data.energy = 7000
+    fill.data.energy = lighting["fill"]
+    fill.data.color = (0.78, 0.88, 1.0)
     fill.data.shape = "DISK"
-    fill.data.size = 220
+    fill.data.size = 300
     # AgX compresses highlights and desaturates this low-poly blockout.
     # Standard gives a clearer technical preview with visible material hues.
     scene.view_settings.view_transform = "Standard"
     scene.view_settings.look = "Medium High Contrast"
-    scene.view_settings.exposure = -0.25
+    scene.view_settings.exposure = lighting["exposure"]
     scene.view_settings.gamma = 1.0
     scene.render.film_transparent = False
     scene.render.image_settings.color_mode = "RGBA"
@@ -164,6 +179,6 @@ def render(scene_file, output_file):
 
 if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--")+1:] if "--" in sys.argv else []
-    if len(args) != 2:
-        raise SystemExit("Usage: blender -b --python v6_2_blender_preview.py -- scene.json output.png")
-    render(*args)
+    if len(args) not in (2, 3):
+        raise SystemExit("Usage: blender -b --python v6_2_blender_preview.py -- scene.json output.png [daylight|bright|dramatic]")
+    render(args[0], args[1], args[2] if len(args) == 3 else "daylight")
