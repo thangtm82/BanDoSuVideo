@@ -21,10 +21,12 @@ def render(scene_file, output_file):
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = "PNG"
     materials = {}
+    def srgb_to_linear(channel):
+        return channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
     def material(color):
         if color not in materials:
             m = bpy.data.materials.new("H2-" + color)
-            m.diffuse_color = tuple(int(color[i:i+2], 16)/255 for i in (1,3,5)) + (1,)
+            m.diffuse_color = tuple(srgb_to_linear(int(color[i:i+2], 16)/255) for i in (1,3,5)) + (1,)
             m.use_nodes = True
             bsdf = m.node_tree.nodes.get("Principled BSDF")
             if bsdf:
@@ -129,23 +131,29 @@ def render(scene_file, output_file):
     background = nodes.get("Background") or nodes.new("ShaderNodeBackground")
     output = nodes.get("World Output") or nodes.new("ShaderNodeOutputWorld")
     scene.world.node_tree.links.new(background.outputs["Background"], output.inputs["Surface"])
-    background.inputs["Color"].default_value = (0.64, 0.74, 0.82, 1.0)
-    background.inputs["Strength"].default_value = float(env.get("lighting", {}).get("ambient_strength", 0.7))
+    background.inputs["Color"].default_value = (0.35, 0.46, 0.58, 1.0)
+    background.inputs["Strength"].default_value = min(0.45, float(env.get("lighting", {}).get("ambient_strength", 0.7)))
     # Sun light keeps brightness consistent across the entire town.
     bpy.ops.object.light_add(type="SUN", location=(0, 0, 250))
     sun = bpy.context.object
     sun.name = "H2 daylight sun"
     sun.rotation_euler = (math.radians(35), math.radians(-25), math.radians(-30))
-    sun.data.energy = float(env.get("lighting", {}).get("sun_energy", 2.2))
+    sun.data.energy = min(2.2, float(env.get("lighting", {}).get("sun_energy", 2.2)))
     sun.data.angle = math.radians(5)
     bpy.ops.object.light_add(type="AREA", location=(100, -150, 350))
     fill = bpy.context.object
     fill.name = "H2 soft fill"
-    fill.data.energy = 25000
+    fill.data.energy = 7000
     fill.data.shape = "DISK"
-    fill.data.size = 500
-    scene.view_settings.view_transform = "AgX"
-    scene.view_settings.exposure = float(env.get("lighting", {}).get("exposure", 0.0))
+    fill.data.size = 220
+    # AgX compresses highlights and desaturates this low-poly blockout.
+    # Standard gives a clearer technical preview with visible material hues.
+    scene.view_settings.view_transform = "Standard"
+    scene.view_settings.look = "Medium High Contrast"
+    scene.view_settings.exposure = -0.25
+    scene.view_settings.gamma = 1.0
+    scene.render.film_transparent = False
+    scene.render.image_settings.color_mode = "RGBA"
     path = Path(output_file).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     scene.render.filepath = str(path)
