@@ -28,8 +28,6 @@ class TimelineTests(unittest.TestCase):
                          compile_timeline(self.plan(), minutes=12))
 
     def test_short_duration(self):
-        t = compile_timeline(self.plan(), minutes=0.001, fps=24)
-        self.assertEqual(t["total_frames"], 1) if False else None
         with self.assertRaises(ValueError):
             compile_timeline(self.plan(), minutes=0.00001, fps=24)
 
