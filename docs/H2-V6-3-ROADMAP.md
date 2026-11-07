@@ -142,3 +142,34 @@ same JSON. Confirm the river passes through an actual wall gap and that
 there are no leftover floating battlements. If the river intersects a
 `gate` instance or multiple walls, the current pass may require more
 work. Do not mark PR ready until Blender/Three.js and unit tests pass.
+
+## V6.3 Final candidate — deeper bridge and watergate details
+
+New details in `v6_3_natural_world.py`:
+- Two longitudinal bridge parapets and four corner posts, all expressed as
+  engine-neutral `box` primitives.
+- River intersections can split both `wall` and `gate` instances.
+- Removes stale `gate-arch-dark` decals from split gates.
+- `watergate_status: open_channel_no_arch` and
+  `watergate_review_required` explicitly indicate that a full stone
+  arch/grille is **not** implemented.
+
+### Acceptance
+
+```cmd
+python tools\v6_3_natural_world.py build\v6_3_scene.json build\v6_3_natural.json
+python -m unittest discover -s tests -p "test_v6_3_*.py" -v
+"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b -t 4 --python tools\v6_2_blender_preview.py -- build\v6_3_natural.json build\v6_3_final_candidate.png bright_final
+```
+
+Check the new bridge railings, actual wall/gate openings, river surface,
+and consistency with Three.js. Rebuild the cinematic plan and frames only
+after the still preview is accepted.
+
+### Remaining limitations
+
+The bridge is a blockout, not a masonry arch. River-bank geometry,
+vegetation terrain snapping, and full historical asset variety remain
+outstanding. A watergate crossing may still require manual inspection
+when the river runs near a corner tower. Do not merge based on source
+changes alone: local tests and Blender/Three.js render QA are required.
