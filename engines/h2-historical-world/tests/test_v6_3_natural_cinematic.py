@@ -42,6 +42,20 @@ class WorldTests(unittest.TestCase):
         self.assertAlmostEqual(upgraded["details"][0]["position"][2],0)
     def test_no_decorative_bridge_without_road(self):
         self.assertFalse(natural.upgrade(self.scene(),resolution=9)["environment"]["bridge_crossings"])
+    def test_watergate_cuts_wall_geometry(self):
+        scene=self.scene()
+        scene["instances"]=[{"id":"wall-cross","kind":"wall",
+            "position":[0,6,0],"dimensions":[100,12,5],
+            "rotation_y":0.0,"color":"#a99a83","roof":{"style":"none"}}]
+        scene["details"]=[{"id":"wall-cross-merlon-0","shape":"box",
+            "position":[0,13,0],"size":[3,2,3],"color":"#a99a83"}]
+        scene["environment"]["river"]["points"]=[[0,0,-100],[0,0,100]]
+        upgraded=natural.upgrade(scene,resolution=9)
+        self.assertEqual(upgraded["environment"]["watergate_cut_wall_ids"],["wall-cross"])
+        self.assertFalse(upgraded["environment"]["river_wall_intersections_unresolved"])
+        self.assertEqual(len(upgraded["instances"]),2)
+        self.assertFalse(any(d["id"]=="wall-cross-merlon-0" for d in upgraded["details"]))
+        self.assertAlmostEqual(sum(w["dimensions"][0] for w in upgraded["instances"]),80.0)
     def test_bad_inputs(self):
         with self.assertRaises(ValueError): natural.upgrade(self.scene(),resolution=10)
         scene=self.scene();scene["environment"]["river"]["points"]=[]
