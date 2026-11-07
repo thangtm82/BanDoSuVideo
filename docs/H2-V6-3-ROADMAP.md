@@ -76,3 +76,19 @@ Three.js scene: `http://localhost:8765/tools/v6_2_preview.html?scene=/build/v6_3
 - Three.js camera path playback is not yet implemented; use the Blender renderer for animation.
 - Blender animation renders a setup still before the frames, adding overhead.
 - The pipeline has not been executed in a Blender/FFmpeg environment by the GitHub connector. Verify visually and run all tests before marking PR ready.
+
+## V6.3c camera revision after first MP4 review
+
+Camera path now has three continuous phases: establishing (0–38%), approach
+(38–76%), and flyby (76–100%). Smoothstep is used within each phase.
+This is a new camera plan only; **regenerate the plan JSON** before rerendering.
+
+```cmd
+python tools\v6_3_cinematic.py plan build\v6_3_natural.json build\v6_3_camera.json --frames 240 --fps 24
+"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b -t 4 --python tools\v6_3_blender_animation.py -- build\v6_3_natural.json build\v6_3_camera.json build\v6_3_frames_10s bright_final
+python tools\v6_3_cinematic.py assemble build\v6_3_frames_10s build\v6_3_cinematic_10s.mp4 --fps 24
+```
+
+Use a **fresh frames directory** to avoid mixing 120-frame and 240-frame
+renders. The natural-world bridge is still a primitive; river/wall intersections
+are not fully resolved. This branch is still draft pending render QA.
