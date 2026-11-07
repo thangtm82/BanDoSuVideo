@@ -24,6 +24,17 @@ class PipelineTests(unittest.TestCase):
             folder=pipeline.render(natural,camera,d,blender="blender",dry_run=True)
             pipeline.assemble(folder,d,dry_run=True)
             runner.assert_not_called()
+    def test_progress_event_contract(self):
+        from io import StringIO
+        with patch("sys.stdout", new_callable=StringIO) as stream:
+            pipeline.emit("camera", "completed", frames=48)
+        line=stream.getvalue().strip()
+        self.assertTrue(line.startswith("H2_PROGRESS "))
+        import json
+        event=json.loads(line[len("H2_PROGRESS "):])
+        self.assertEqual(event["stage"],"camera")
+        self.assertEqual(event["status"],"completed")
+        self.assertEqual(event["frames"],48)
     def test_prevent_mixed_frames(self):
         with tempfile.TemporaryDirectory() as d:
             folder=Path(d)/"frames"
