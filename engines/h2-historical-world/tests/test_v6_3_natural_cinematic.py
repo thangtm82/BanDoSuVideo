@@ -42,6 +42,14 @@ class WorldTests(unittest.TestCase):
         self.assertEqual(plan["shots"][0]["frame"],1)
         self.assertEqual(plan["shots"][-1]["frame"],5)
         self.assertEqual(plan,cinema.camera_path(self.scene(),frames=5,fps=25))
+    def test_cinematic_phases_and_dolly(self):
+        plan=cinema.camera_path(self.scene(),frames=120,fps=24)
+        shots=plan["shots"]
+        self.assertEqual({s["phase"] for s in shots},
+                         {"establishing","approach","flyby"})
+        self.assertLess(math.dist(shots[-1]["position"],shots[-1]["target"]),
+                        math.dist(shots[0]["position"],shots[0]["target"]))
+        self.assertTrue(all(shots[i]["frame"] == i+1 for i in range(120)))
     def test_assemble_requires_frames(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(FileNotFoundError):
