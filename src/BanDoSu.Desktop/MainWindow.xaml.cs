@@ -1819,4 +1819,79 @@ public partial class MainWindow : Window
         finally { _worldCts?.Dispose(); _worldCts = null; }
     }
 
+    private void WorldLoadProjectScriptClick(object sender, RoutedEventArgs e)
+    {
+        if (_selected is null) { Alert("Chọn dự án trước."); return; }
+        var script = AiScriptEditor.Text.Trim();
+        if (string.IsNullOrWhiteSpace(script))
+            script = LoadIfExists(AiPath(_selected.Name, "01-SCRIPT", "txt")).Trim();
+        if (string.IsNullOrWhiteSpace(script))
+            script = AiVoiceEditor.Text.Trim();
+        if (string.IsNullOrWhiteSpace(script))
+            throw new InvalidOperationException("Dự án chưa có kịch bản 01-SCRIPT hoặc 02-VOICE.");
+        WorldScriptText.Text = script;
+        WorldStatus.Text = "Đã nạp kịch bản dự án: " + _selected.Name;
+    }
+
+    private void WorldSyncAiClick(object sender, RoutedEventArgs e)
+    {
+        var request = BuildAiRequest();
+        var endpoint = request.Provider switch
+        {
+            AiScriptProvider.Custom => AiEndpoint.Resolve(request.BaseUrl ?? "", request.CustomEndpoint).ToString(),
+            AiScriptProvider.OpenAI => "https://api.openai.com/v1/chat/completions",
+            _ => throw new NotSupportedException("Gemini native chưa hỗ trợ qua AI Scene Plan CLI; hãy chọn OpenAI hoặc Custom.")
+        };
+        if (request.Provider == AiScriptProvider.Custom &&
+            request.CustomEndpoint == AiCustomEndpoint.Responses)
+            throw new NotSupportedException("AI Scene Plan yêu cầu Chat Completions; hãy chọn endpoint tương ứng.");
+        WorldAiEndpoint.Text = endpoint;
+        WorldAiModel.Text = request.Model;
+        WorldStatus.Text = "Đã đồng bộ AI từ tab AI Kịch bản";
+    }
+
+    private void WorldBrowseEngineClick(object sender, RoutedEventArgs e)
+    {
+        using var dialog = new System.Windows.Forms.FolderBrowserDialog { Description = "Chọn thư mục h2-historical-world" };
+        if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            WorldEnginePath.Text = dialog.SelectedPath;
+    }
+
+    private void WorldCheckEnvironmentClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var engine = ResolveWorldEngine();
+            if (!File.Exists(Path.Combine(engine, "tools", "v6_4_pipeline.py")))
+                throw new FileNotFoundException("Thiếu V6.4 pipeline");
+            if (!File.Exists(WorldBlenderPath.Text.Trim()))
+                throw new FileNotFoundException("Không tìm thấy Blender.exe", WorldBlenderPath.Text.Trim());
+            var scene = WorldScenePath.Text.Trim();
+            if (!Path.IsPathRooted(scene)) scene = Path.Combine(engine, scene);
+            if (!File.Exists(scene)) throw new FileNotFoundException("Không tìm thấy Scene JSON", scene);
+            WorldStatus.Text = "Engine / Blender / Scene JSON: OK";
+        }
+        catch (Exception ex) { WorldStatus.Text = "Môi trường chưa sẵn sàng"; Alert(ex.Message); }
+    }
+
+    private async void WorldPreviewClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var engine = ResolveWorldEngine();
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Chọn file Three.js preview HTML do engine xuất",
+                Filter = "HTML preview (*.html)|*.html"
+            };
+            dialog.InitialDirectory = Directory.Exists(Path.Combine(engine, "build"))
+                ? Path.Combine(engine, "build") : engine;
+            if (dialog.ShowDialog(this) != true) return;
+            await WorldPreviewBrowser.EnsureCoreWebView2Async();
+            WorldPreviewBrowser.CoreWebView2.Navigate(new Uri(dialog.FileName).AbsoluteUri);
+            WorldStatus.Text = "Three.js preview: " + Path.GetFileName(dialog.FileName);
+        }
+        catch (Exception ex) { WorldStatus.Text = "Preview lỗi"; Alert(ex.Message); }
+    }
+
 }
