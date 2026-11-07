@@ -35,6 +35,23 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(event["stage"],"camera")
         self.assertEqual(event["status"],"completed")
         self.assertEqual(event["frames"],48)
+    def test_clean_frames_is_opt_in(self):
+        with tempfile.TemporaryDirectory() as d, patch.object(pipeline.subprocess,"run") as runner:
+            folder=Path(d)/"frames"
+            folder.mkdir()
+            stale=folder/"frame_00001.png"
+            stale.write_bytes(b"old")
+            camera=Path(d)/"camera.json"
+            camera.write_text('{"frames":2}')
+            natural=Path(d)/"scene.json"
+            natural.write_text("{}")
+            def make_frames(*args,**kwargs):
+                (folder/"frame_00001.png").write_bytes(b"new")
+                (folder/"frame_00002.png").write_bytes(b"new")
+            runner.side_effect=make_frames
+            result=pipeline.render(natural,camera,d,blender="blender",clean_frames=True)
+            self.assertEqual(result,folder)
+            self.assertEqual(stale.read_bytes(),b"new")
     def test_prevent_mixed_frames(self):
         with tempfile.TemporaryDirectory() as d:
             folder=Path(d)/"frames"
