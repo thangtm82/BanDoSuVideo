@@ -1764,4 +1764,59 @@ public partial class MainWindow : Window
         catch (Exception ex) { Log(ex.ToString()); Alert(ex.Message); }
     }
 
+    private async void WorldAiPlanClick(object sender, RoutedEventArgs e)
+    {
+        if (_worldCts != null) { Alert("Đang có tác vụ Historical World."); return; }
+        var key = Environment.GetEnvironmentVariable("H2_AI_API_KEY");
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            Alert("Cần đặt biến môi trường H2_AI_API_KEY trước khi dùng AI Scene Plan. Không lưu API key vào dự án.");
+            return;
+        }
+        _worldCts = new CancellationTokenSource();
+        try
+        {
+            var engine = ResolveWorldEngine();
+            var script = WorldScriptText.Text.Trim();
+            if (script.Length < 10) throw new ArgumentException("Kịch bản phải có ít nhất 10 ký tự.");
+            var output = WorldOutputPath.Text.Trim();
+            if (!Path.IsPathRooted(output)) output = Path.Combine(engine, output);
+            Directory.CreateDirectory(output);
+            var source = Path.Combine(output, "v6_4_script.txt");
+            var draft = Path.Combine(output, "v6_4_scene_plan_ai_draft.json");
+            File.WriteAllText(source, script, Encoding.UTF8);
+            var start = new ProcessStartInfo(_settings.PythonExecutable)
+            {
+                UseShellExecute = false, RedirectStandardOutput = true,
+                RedirectStandardError = true, CreateNoWindow = true,
+                WorkingDirectory = engine
+            };
+            foreach (var arg in new[] { Path.Combine(engine, "tools", "v6_4_ai_scene_plan.py"),
+                "--script", source, "--output", draft, "--endpoint",
+                WorldAiEndpoint.Text.Trim(), "--model", WorldAiModel.Text.Trim() })
+                start.ArgumentList.Add(arg);
+            start.Environment["H2_AI_API_KEY"] = key;
+            using var process = Process.Start(start) ?? throw new InvalidOperationException("Không khởi động được Python.");
+            using var registration = _worldCts.Token.Register(() =>
+            {
+                try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+                catch (InvalidOperationException) { }
+            });
+            WorldStatus.Text = "AI đang tạo Scene Plan...";
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            var outText = await stdout;
+            var errText = await stderr;
+            _worldCts.Token.ThrowIfCancellationRequested();
+            if (process.ExitCode != 0) throw new InvalidOperationException(errText);
+            Log(outText);
+            WorldStatus.Text = "AI Scene Plan nháp đã tạo — cần duyệt";
+            Alert("Đã tạo Scene Plan: " + draft + "\nCần duyệt nội dung lịch sử. Scene Plan chưa tự chuyển thành V6.2 Scene JSON.");
+        }
+        catch (OperationCanceledException) { WorldStatus.Text = "Đã hủy AI"; }
+        catch (Exception ex) { WorldStatus.Text = "AI thất bại"; Log(ex.ToString()); Alert(ex.Message); }
+        finally { _worldCts?.Dispose(); _worldCts = null; }
+    }
+
 }
