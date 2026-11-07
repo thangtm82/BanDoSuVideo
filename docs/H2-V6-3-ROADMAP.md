@@ -92,3 +92,27 @@ python tools\v6_3_cinematic.py assemble build\v6_3_frames_10s build\v6_3_cinemat
 Use a **fresh frames directory** to avoid mixing 120-frame and 240-frame
 renders. The natural-world bridge is still a primitive; river/wall intersections
 are not fully resolved. This branch is still draft pending render QA.
+
+## V6.3 final QA revision — road-aware bridges
+
+The V6.3b natural-world pass now locates bridges at actual road/river
+segment intersections instead of an arbitrary river midpoint. It also removes
+legacy `hill-*` cones because the heightfield already provides surrounding
+relief. A scene with no road/river intersection deliberately has no bridge.
+The environment includes `bridge_crossings` for inspection.
+
+**Unresolved:** the river may still intersect wall geometry. The scene sets
+`river_wall_intersections_unresolved: true` rather than claiming that the
+physical gate opening is implemented.
+
+Regenerate `build\v6_3_natural.json` and then camera plan / Blender frames;
+reusing the previous JSON or PNG frames will not show these geometry changes.
+
+```cmd
+python tools\v6_3_natural_world.py build\v6_3_scene.json build\v6_3_natural.json
+python -m unittest discover -s tests -p "test_v6_3_*.py" -v
+```
+
+A visual acceptance pass must confirm actual bridge/road alignment, absence
+of floating vegetation, river/wall interactions and camera collision. This
+change has not yet been validated in a live Blender render.
