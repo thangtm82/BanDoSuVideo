@@ -72,11 +72,22 @@ def render(scene_file, output_file, lighting_preset="bright_final"):
             raise ValueError("Unsupported detail shape: " + str(detail["shape"]))
         part.name = detail["id"]
         part.data.materials.append(material(detail["color"]))
-    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, -1))
-    ground = bpy.context.object
-    ground.name = "H2 terrain blockout"
-    ground.dimensions = (1200, 1200, 2)
-    ground.data.materials.append(material(env.get("lighting", {}).get("ground_color", "#758265")))
+    terrain = env.get("terrain_mesh")
+    if terrain:
+        vertices = [(p[0], p[2], p[1]) for p in terrain["vertices"]]
+        faces = [tuple(triangle) for triangle in terrain["triangles"]]
+        mesh = bpy.data.meshes.new("H2 terrain heightfield")
+        mesh.from_pydata(vertices, [], faces)
+        mesh.update()
+        ground = bpy.data.objects.new("H2 terrain heightfield", mesh)
+        bpy.context.collection.objects.link(ground)
+        ground.data.materials.append(material(terrain.get("color", "#758265")))
+    else:
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, -1))
+        ground = bpy.context.object
+        ground.name = "H2 terrain blockout"
+        ground.dimensions = (1200, 1200, 2)
+        ground.data.materials.append(material(env.get("lighting", {}).get("ground_color", "#758265")))
     def strip_mesh(name, points, width, color, elevation=0.12):
         """Generate a real flat ribbon mesh from Y-up path coordinates."""
         if len(points) < 2:
