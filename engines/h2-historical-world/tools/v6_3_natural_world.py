@@ -48,24 +48,49 @@ def upgrade(scene, resolution=49, extent=600):
             a=j*resolution+i
             triangles.extend([[a,a+resolution+1,a+1],[a,a+resolution,a+resolution+1]])
     env["terrain_mesh"]={"vertices":vertices,"triangles":triangles,"color":"#758265"}
-    # A raised crossing is visible in both engines. Geometry is deliberately
-    # primitive; a true structural arch requires a later asset pass.
+    # Replace legacy background cones: the continuous terrain mesh now owns hills.
     details=result.setdefault("details",[])
+    details[:]=[d for d in details if not d.get("id","").startswith("hill-")]
     existing={d["id"] for d in details}
-    mid=len(points)//2
-    p=points[mid]
-    # Bridge is a raised deck across the river, approximately perpendicular
-    # to the local flow, not a river-spanning line along the flow.
-    before,after=points[max(0,mid-1)],points[min(len(points)-1,mid+1)]
-    direction=math.atan2(after[0]-before[0],after[2]-before[2])
-    bridge_id="v6_3_bridge_deck"
-    if bridge_id in existing:
-        raise ValueError("Scene already has V6.3b bridge")
-    details.append({"id":bridge_id,"shape":"box",
-                    "position":[p[0],2.0,p[2]],
-                    "size":[width+8,2.0,8.0],"color":"#a79a83",
-                    "rotation_y":direction,"sides":4})
-    result["version_note"]="V6.3b terrain mesh, carved river corridor, bridge deck"
+    # Find actual intersections of road and river segments in the horizontal plane.
+    # Do not place a decorative bridge at an arbitrary midpoint.
+    def crossing(a,b,c,d):
+        ax,az=a[0],a[2];bx,bz=b[0],b[2]
+        cx,cz=c[0],c[2];dx,dz=d[0],d[2]
+        rx,rz=bx-ax,bz-az;sx,sz=dx-cx,dz-cz
+        den=rx*sz-rz*sx
+        if abs(den)<1e-8:
+            return None
+        qx,qz=cx-ax,cz-az
+        t=(qx*sz-qz*sx)/den
+        u=(qx*rz-qz*rx)/den
+        if 0<=t<=1 and 0<=u<=1:
+            return (ax+t*rx,az+t*rz,rx,rz,sx,sz)
+        return None
+    intersections=[]
+    for road in env.get("roads",[]):
+        road_points=road.get("points",[])
+        for a,b in zip(road_points,road_points[1:]):
+            for c,d in zip(points,points[1:]):
+                hit=crossing(a,b,c,d)
+                if hit and all(math.hypot(hit[0]-other[0],hit[1]-other[1])>width
+                               for other in intersections):
+                    intersections.append(hit)
+    for i,(x,z,rx,rz,sx,sz) in enumerate(intersections):
+        road_angle=math.atan2(-rz,rx)
+        bridge_id="v6_3_bridge_"+str(i)
+        if bridge_id in existing:
+            raise ValueError("Duplicate bridge ID: "+bridge_id)
+        existing.add(bridge_id)
+        details.append({"id":bridge_id,"shape":"box",
+                        "position":[round(x,4),2.0,round(z,4)],
+                        "size":[width+10,2.0,8.0],"color":"#b5a38b",
+                        "rotation_y":road_angle,"sides":4})
+    env["bridge_crossings"]=[{"x":round(h[0],4),"z":round(h[1],4)}
+                             for h in intersections]
+    # Mark unresolved river/wall conflicts for a later gate-cutout geometry pass.
+    env["river_wall_intersections_unresolved"]=True
+    result["version_note"]="V6.3b terrain mesh and road-aligned bridge crossings"
     return result
 
 def main():
