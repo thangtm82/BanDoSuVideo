@@ -91,6 +91,7 @@ def main():
     mux.add_argument("frames_dir")
     mux.add_argument("output")
     mux.add_argument("--fps",type=int,default=24)
+    mux.add_argument("--ffmpeg",default="ffmpeg")
     args=p.parse_args()
     if args.action=="plan":
         result=camera_path(json.loads(Path(args.scene).read_text(encoding="utf-8-sig")),args.frames,args.fps)
@@ -98,6 +99,6 @@ def main():
         dest.write_text(json.dumps(result,indent=2),encoding="utf-8")
         print("Camera plan:",dest,"frames:",args.frames)
     else:
-        print("MP4:",assemble(args.frames_dir,args.output,args.fps))
+        print("MP4:",assemble(args.frames_dir,args.output,args.fps,args.ffmpeg))
 if __name__=="__main__":
     main()

@@ -1669,6 +1669,7 @@ public partial class MainWindow : Window
     private void OnWindowClosing(object? sender, CancelEventArgs e)
     {
         _operation?.Cancel();
+        _worldCts?.Cancel();
         _environmentCts?.Cancel();
         _aiCts?.Cancel();
         _terrainAiCts?.Cancel();
@@ -1676,4 +1677,328 @@ public partial class MainWindow : Window
         StopPreviewHost();
         VideoPlayer.Stop();
     }
+    private CancellationTokenSource? _worldCts;
+    private string? _worldMp4;
+
+    private string ResolveWorldEngine()
+    {
+        var path = WorldEnginePath.Text.Trim();
+        if (Path.IsPathRooted(path)) return Path.GetFullPath(path);
+        // The engine lives under the checked-out repository, not the portable studio root.
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current != null)
+        {
+            var candidate = Path.Combine(current.FullName, path.Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(Path.Combine(candidate, "tools", "v6_4_pipeline.py"))) return candidate;
+            current = current.Parent;
+        }
+        throw new DirectoryNotFoundException("Không tìm thấy engine V6.4. Hãy nhập đường dẫn tuyệt đối.");
+    }
+
+    private int WorldProjectMinutes()
+    {
+        var minutes = int.TryParse((AiDurationInput.SelectedItem as ComboBoxItem)?.Tag?.ToString(),
+            out var value) ? value : 12;
+        if (minutes < 1 || minutes > 240) throw new ArgumentOutOfRangeException(nameof(minutes));
+        return minutes;
+    }
+
+    private void WorldDurationChanged(object sender, RoutedEventArgs e)
+    {
+        if (WorldFrames == null || WorldFps == null || WorldUseProjectDuration == null) return;
+        WorldFrames.IsReadOnly = WorldUseProjectDuration.IsChecked == true;
+        if (WorldUseProjectDuration.IsChecked == true)
+        {
+            if (!int.TryParse(WorldFps.Text, out var fps) || fps < 1) fps = 24;
+            WorldFrames.Text = checked(WorldProjectMinutes() * 60 * fps).ToString();
+        }
+    }
+
+    private async void WorldTimelineClick(object sender, RoutedEventArgs e)
+    {
+        if (_worldCts != null) { Alert("Đang có tác vụ Historical World."); return; }
+        try
+        {
+            var engine = ResolveWorldEngine();
+            var output = WorldOutputPath.Text.Trim();
+            if (!Path.IsPathRooted(output)) output = Path.Combine(engine, output);
+            var draft = Path.Combine(output, "v6_4_scene_plan_ai_draft.json");
+            if (!File.Exists(draft)) throw new FileNotFoundException("Hãy tạo AI Scene Plan trước.", draft);
+            if (!int.TryParse(WorldFps.Text, out var fps) || fps < 1)
+                throw new ArgumentException("FPS không hợp lệ.");
+            var timeline = Path.Combine(output, "v6_4_timeline.json");
+            var start = new ProcessStartInfo(_settings.PythonExecutable)
+            {
+                UseShellExecute = false, RedirectStandardOutput = true,
+                RedirectStandardError = true, CreateNoWindow = true, WorkingDirectory = engine
+            };
+            foreach (var arg in new[] { Path.Combine(engine, "tools", "v6_4_audio_timeline.py"),
+                "--plan", draft, "--minutes", WorldProjectMinutes().ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "--fps", fps.ToString(), "--output", timeline }) start.ArgumentList.Add(arg);
+            using var process = Process.Start(start) ?? throw new InvalidOperationException("Không khởi động được Python.");
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            var err = await stderr;
+            if (process.ExitCode != 0) throw new InvalidOperationException(err);
+            Log(await stdout);
+            WorldDurationChanged(sender, e);
+            WorldStatus.Text = "Timeline: audio ưu tiên, text dự phòng — chưa có scene compiler";
+            Alert("Đã tạo timeline theo thời lượng dự án: " + timeline +
+                  "\\nChưa thể render 24 cảnh AI: cần scene compiler và duyệt lịch sử.");
+        }
+        catch (Exception ex) { WorldStatus.Text = "Timeline thất bại"; Log(ex.ToString()); Alert(ex.Message); }
+    }
+
+    private async void WorldRenderClick(object sender, RoutedEventArgs e)
+    {
+        if (_worldCts != null || _operation != null) { Alert("Đang có tác vụ khác chạy."); return; }
+        _worldCts = new CancellationTokenSource();
+        WorldRenderButton.IsEnabled = false;
+        _worldMp4 = null;
+        try
+        {
+            var engine = ResolveWorldEngine();
+            var scene = WorldScenePath.Text.Trim();
+            if (!Path.IsPathRooted(scene)) scene = Path.Combine(engine, scene);
+            var output = WorldOutputPath.Text.Trim();
+            if (!Path.IsPathRooted(output)) output = Path.Combine(engine, output);
+            if (WorldUseProjectDuration.IsChecked == true)
+            {
+                var planFile = Path.Combine(output, "v6_4_scene_plan_ai_draft.json");
+                if (!File.Exists(planFile))
+                    throw new FileNotFoundException("Chưa có AI Scene Plan. Hãy tạo Scene Plan trước.", planFile);
+                if (!File.Exists(scene))
+                    throw new FileNotFoundException("Cần scene mẫu V6.2 để dựng blockout đa cảnh.", scene);
+                if (!int.TryParse(WorldFps.Text, out var projectFps) || projectFps < 1)
+                    throw new ArgumentException("FPS phải lớn hơn 0.");
+                var audioDir = WorldAudioDirectory.Text.Trim();
+                if (audioDir.Length > 0 && !Directory.Exists(audioDir))
+                    throw new DirectoryNotFoundException("Không tìm thấy thư mục audio: " + audioDir);
+                var multiOutput = Path.Combine(output, "multi_shot_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+                var start = new ProcessStartInfo(_settings.PythonExecutable)
+                {
+                    UseShellExecute = false, RedirectStandardOutput = true,
+                    RedirectStandardError = true, CreateNoWindow = true,
+                    WorkingDirectory = engine
+                };
+                foreach (var arg in new[] {
+                    Path.Combine(engine, "tools", "v6_4_multishot.py"),
+                    "--plan", planFile, "--template-scene", scene,
+                    "--output", multiOutput, "--fps", projectFps.ToString(),
+                    "--blender", WorldBlenderPath.Text.Trim(),
+                    "--ffmpeg", _settings.FfmpegExecutable })
+                    start.ArgumentList.Add(arg);
+                if (audioDir.Length > 0)
+                {
+                    start.ArgumentList.Add("--audio-dir");
+                    start.ArgumentList.Add(audioDir);
+                }
+                using var process = Process.Start(start) ??
+                    throw new InvalidOperationException("Không khởi động được multi-shot renderer.");
+                using var registration = _worldCts.Token.Register(() =>
+                {
+                    try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+                    catch (InvalidOperationException) { }
+                });
+                WorldStatus.Text = "Đang render các cảnh...";
+                var stdout = process.StandardOutput.ReadToEndAsync();
+                var stderr = process.StandardError.ReadToEndAsync();
+                await process.WaitForExitAsync();
+                var log = await stdout;
+                var errors = await stderr;
+                Log(log);
+                _worldCts.Token.ThrowIfCancellationRequested();
+                if (process.ExitCode != 0)
+                    throw new InvalidOperationException("Multi-shot render thất bại: " + errors);
+                _worldMp4 = Path.Combine(multiOutput, "v6_4_project.mp4");
+                if (!File.Exists(_worldMp4))
+                    throw new FileNotFoundException("Không tìm thấy MP4 sau render.", _worldMp4);
+                WorldStatus.Text = "Hoàn tất render đa cảnh (blockout)";
+                return;
+            }
+            if (!int.TryParse(WorldFrames.Text, out var frameCount) || frameCount < 2 ||
+                !int.TryParse(WorldFps.Text, out var fps) || fps < 1)
+                throw new ArgumentException("Frames >= 2 và FPS >= 1.");
+            var pipeline = Path.Combine(engine, "tools", "v6_4_pipeline.py");
+            var service = new H2.HistoricalWorld.HistoricalWorldRenderService();
+            service.Log += Log;
+            service.Progress += (stage, state) => Dispatcher.InvokeAsync(() => WorldStatus.Text = stage + ": " + state);
+            WorldStatus.Text = "Đang chạy...";
+            _worldMp4 = await service.RenderAsync(_settings.PythonExecutable, pipeline,
+                Path.GetFullPath(scene), Path.GetFullPath(output), WorldBlenderPath.Text.Trim(),
+                frameCount, fps, _worldCts.Token);
+            WorldStatus.Text = "Hoàn tất";
+            Log("Historical World MP4: " + _worldMp4);
+        }
+        catch (OperationCanceledException) { WorldStatus.Text = "Đã hủy"; }
+        catch (Exception ex) { WorldStatus.Text = "Thất bại"; Log("Historical World: " + ex); Alert(ex.Message); }
+        finally { WorldRenderButton.IsEnabled = true; _worldCts?.Dispose(); _worldCts = null; }
+    }
+
+    private void WorldCancelClick(object sender, RoutedEventArgs e) => _worldCts?.Cancel();
+
+    private void WorldOpenMp4Click(object sender, RoutedEventArgs e)
+    {
+        if (_worldMp4 == null || !File.Exists(_worldMp4)) { Alert("Chưa có MP4 từ lần render này."); return; }
+        Process.Start(new ProcessStartInfo(_worldMp4) { UseShellExecute = true });
+    }
+
+    private void WorldPlanClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var engine = ResolveWorldEngine();
+            var script = RequireWorldProjectScript();
+            if (script.Length < 10) throw new ArgumentException("Hãy nhập kịch bản tối thiểu 10 ký tự.");
+            var output = WorldOutputPath.Text.Trim();
+            if (!Path.IsPathRooted(output)) output = Path.Combine(engine, output);
+            Directory.CreateDirectory(output);
+            var source = Path.Combine(output, "v6_4_script.txt");
+            File.WriteAllText(source, script, Encoding.UTF8);
+            var scenePlan = Path.Combine(output, "v6_4_scene_plan_draft.json");
+            var draft = new JsonObject
+            {
+                ["schema"] = "h2.historical_world.scene_plan.v6.4",
+                ["status"] = "draft_requires_review",
+                ["source_script"] = Path.GetFileName(source),
+                ["title"] = script.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim() ?? "Historical World",
+                ["shots"] = new JsonArray()
+            };
+            File.WriteAllText(scenePlan, draft.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), Encoding.UTF8);
+            WorldStatus.Text = "Đã lưu Scene Plan nháp — cần bổ sung shots và duyệt";
+            Log("Scene Plan nháp: " + scenePlan);
+            Alert("Đã tạo Scene Plan nháp, chưa gọi AI và chưa tạo Scene JSON. Không thể render bản nháp.");
+        }
+        catch (Exception ex) { Log(ex.ToString()); Alert(ex.Message); }
+    }
+
+    private async void WorldAiPlanClick(object sender, RoutedEventArgs e)
+    {
+        if (_worldCts != null) { Alert("Đang có tác vụ Historical World."); return; }
+        var ai = WorldAiSettings();
+        var key = ai.Key;
+        if (string.IsNullOrWhiteSpace(key)) key = Environment.GetEnvironmentVariable("H2_AI_API_KEY");
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            Alert("Nhập API key tại tab AI Kịch bản hoặc cấu hình H2_AI_API_KEY. Không lưu API key vào dự án.");
+            return;
+        }
+        _worldCts = new CancellationTokenSource();
+        try
+        {
+            var engine = ResolveWorldEngine();
+            var script = RequireWorldProjectScript();
+            if (script.Length < 10) throw new ArgumentException("Kịch bản phải có ít nhất 10 ký tự.");
+            var output = WorldOutputPath.Text.Trim();
+            if (!Path.IsPathRooted(output)) output = Path.Combine(engine, output);
+            Directory.CreateDirectory(output);
+            var source = Path.Combine(output, "v6_4_script.txt");
+            var draft = Path.Combine(output, "v6_4_scene_plan_ai_draft.json");
+            File.WriteAllText(source, script, Encoding.UTF8);
+            var start = new ProcessStartInfo(_settings.PythonExecutable)
+            {
+                UseShellExecute = false, RedirectStandardOutput = true,
+                RedirectStandardError = true, CreateNoWindow = true,
+                WorkingDirectory = engine
+            };
+            foreach (var arg in new[] { Path.Combine(engine, "tools", "v6_4_ai_scene_plan.py"),
+                "--script", source, "--output", draft, "--endpoint",
+                ai.Endpoint, "--model", ai.Model })
+                start.ArgumentList.Add(arg);
+            start.Environment["H2_AI_API_KEY"] = key;
+            using var process = Process.Start(start) ?? throw new InvalidOperationException("Không khởi động được Python.");
+            using var registration = _worldCts.Token.Register(() =>
+            {
+                try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+                catch (InvalidOperationException) { }
+            });
+            WorldStatus.Text = "AI đang tạo Scene Plan...";
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            var outText = await stdout;
+            var errText = await stderr;
+            _worldCts.Token.ThrowIfCancellationRequested();
+            if (process.ExitCode != 0) throw new InvalidOperationException(errText);
+            Log(outText);
+            WorldStatus.Text = "AI Scene Plan nháp đã tạo — cần duyệt";
+            Alert("Đã tạo Scene Plan: " + draft + "\nCần duyệt nội dung lịch sử. Scene Plan chưa tự chuyển thành V6.2 Scene JSON.");
+        }
+        catch (OperationCanceledException) { WorldStatus.Text = "Đã hủy AI"; }
+        catch (Exception ex) { WorldStatus.Text = "AI thất bại"; Log(ex.ToString()); Alert(ex.Message); }
+        finally { _worldCts?.Dispose(); _worldCts = null; }
+    }
+
+    private string RequireWorldProjectScript()
+    {
+        if (_selected is null)
+            throw new InvalidOperationException("Hãy chọn dự án trước khi tạo Scene Plan.");
+        var script = AiScriptEditor.Text.Trim();
+        if (string.IsNullOrWhiteSpace(script))
+            script = LoadIfExists(AiPath(_selected.Name, "01-SCRIPT", "txt")).Trim();
+        if (string.IsNullOrWhiteSpace(script))
+            throw new InvalidOperationException("Dự án chưa có kịch bản. Hãy tạo và lưu kịch bản tại tab AI Kịch bản trước.");
+        return script;
+    }
+
+    private (string Endpoint, string Model, string Key) WorldAiSettings()
+    {
+        var request = BuildAiRequest();
+        var endpoint = request.Provider switch
+        {
+            AiScriptProvider.Custom => AiEndpoint.Resolve(request.BaseUrl ?? "", request.CustomEndpoint).ToString(),
+            AiScriptProvider.OpenAI => "https://api.openai.com/v1/chat/completions",
+            _ => throw new NotSupportedException("Gemini native chưa được hỗ trợ bởi Scene Plan CLI.")
+        };
+        if (request.Provider == AiScriptProvider.Custom &&
+            request.CustomEndpoint == AiCustomEndpoint.Responses)
+            throw new NotSupportedException("Scene Plan CLI hiện yêu cầu endpoint Chat Completions.");
+        return (endpoint, request.Model, request.ApiKey);
+    }
+
+    private void WorldBrowseEngineClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Chọn thư mục h2-historical-world" };
+        if (dialog.ShowDialog(this) == true)
+            WorldEnginePath.Text = dialog.FolderName;
+    }
+
+    private void WorldCheckEnvironmentClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var engine = ResolveWorldEngine();
+            if (!File.Exists(Path.Combine(engine, "tools", "v6_4_pipeline.py")))
+                throw new FileNotFoundException("Thiếu V6.4 pipeline");
+            if (!File.Exists(WorldBlenderPath.Text.Trim()))
+                throw new FileNotFoundException("Không tìm thấy Blender.exe", WorldBlenderPath.Text.Trim());
+            var scene = WorldScenePath.Text.Trim();
+            if (!Path.IsPathRooted(scene)) scene = Path.Combine(engine, scene);
+            if (!File.Exists(scene)) throw new FileNotFoundException("Không tìm thấy Scene JSON", scene);
+            WorldStatus.Text = "Engine / Blender / Scene JSON: OK";
+        }
+        catch (Exception ex) { WorldStatus.Text = "Môi trường chưa sẵn sàng"; Alert(ex.Message); }
+    }
+
+    private async void WorldPreviewClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var engine = ResolveWorldEngine();
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Chọn file Three.js preview HTML do engine xuất",
+                Filter = "HTML preview (*.html)|*.html"
+            };
+            dialog.InitialDirectory = Directory.Exists(Path.Combine(engine, "build"))
+                ? Path.Combine(engine, "build") : engine;
+            if (dialog.ShowDialog(this) != true) return;
+            await WorldPreviewBrowser.EnsureCoreWebView2Async();
+            WorldPreviewBrowser.CoreWebView2.Navigate(new Uri(dialog.FileName).AbsoluteUri);
+            WorldStatus.Text = "Three.js preview: " + Path.GetFileName(dialog.FileName);
+        }
+        catch (Exception ex) { WorldStatus.Text = "Preview lỗi"; Alert(ex.Message); }
+    }
+
 }
