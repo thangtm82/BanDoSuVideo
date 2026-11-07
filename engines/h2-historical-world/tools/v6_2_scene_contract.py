@@ -84,13 +84,66 @@ def environment(world):
                      "exposure": 0.0, "ground_color": "#758265"},
     }
 
+def architectural_details(world):
+    """Engine-neutral primitives: box and cone, canonical Y-up/metres."""
+    result = []
+    def add(id, shape, position, size, color, rotation_y=0.0, sides=8):
+        result.append({"id": id, "shape": shape, "position": position,
+                       "size": size, "color": color, "rotation_y": rotation_y,
+                       "sides": sides})
+    for inst in instances(world):
+        x, y, z = inst["position"]
+        dx, dy, dz = inst["dimensions"]
+        kind = inst["kind"]
+        angle = inst["rotation_y"]
+        if kind == "house":
+            # Reproducible architectural variation, without Python hash randomization.
+            variant = sum(ord(ch) for ch in inst["id"]) % 3
+            if variant == 0:
+                add(inst["id"]+"-chimney", "box",
+                    [x + dx*0.23, y+dy*0.5+2, z], [2.0, 4.0, 2.0], "#786454", angle)
+            elif variant == 1:
+                add(inst["id"]+"-annex", "box",
+                    [x+dx*0.42, y-dy*0.2, z], [dx*0.32, dy*0.55, dz*0.55], "#a48a6e", angle)
+        if kind in ("wall", "gate"):
+            # Battlements along wall's local X axis.
+            count = max(2, int(dx // 5))
+            for k in range(count):
+                offset = (k-(count-1)/2) * dx / count
+                add(inst["id"]+"-merlon-"+str(k), "box",
+                    [x+math.cos(angle)*offset, y+dy/2+1.3,
+                     z-math.sin(angle)*offset], [dx/count*0.55, 2.6, 3.5],
+                    "#b2a38d", angle)
+        if kind == "gate":
+            add(inst["id"]+"-arch-dark", "box", [x, y-dy*0.22, z+dz/2+0.15],
+                [dx*0.3, dy*0.55, 0.35], "#514c42", angle)
+        if kind == "tower":
+            add(inst["id"]+"-watch-platform", "box",
+                [x, y+dy*0.5+0.4, z], [dx*1.18, 1.0, dz*1.18], "#b4a38c", angle)
+    # Environment objects are shared by both engines; hill cones are distant
+    # background landmarks, not a heightfield or terrain displacement.
+    for i, (x, z, r, h) in enumerate([
+        (-440,-380,95,48), (-300,-450,75,32), (350,-420,110,55),
+        (430,320,90,40), (-440,350,80,38)]):
+        add("hill-"+str(i), "cone", [x,h/2,z], [r*2,h,r*2], "#788568", sides=16)
+    # Seeded tree positions outside the central town square.
+    seed = int(world.get("seed", 128))
+    for i in range(70):
+        x = ((i*197 + seed*17) % 1060) - 530
+        z = ((i*311 + seed*13) % 1060) - 530
+        if abs(x) < 290 and abs(z) < 290:
+            continue
+        add("tree-"+str(i)+"-trunk", "box", [x,4,z], [2.2,8,2.2], "#6e5c43")
+        add("tree-"+str(i)+"-canopy", "cone", [x,13,z], [13,20,13], "#506e4a", sides=7)
+    return result
+
 def write_scene(world_path, output_path):
     world = json.loads(Path(world_path).read_text(encoding="utf-8-sig"))
     payload = {"schema": "h2.historical_world.preview.v6.2", "instances": instances(world),
                "roads": world.get("roads", []), "river": world.get("river", []),
                "cameras": world.get("cameras", []), "asset_catalog": world.get("asset_catalog", {}),
                "evidence_status": world.get("evidence_status"),
-               "environment": environment(world)}
+               "environment": environment(world), "details": architectural_details(world)}
     target = Path(output_path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
