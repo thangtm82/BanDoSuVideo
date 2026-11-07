@@ -173,3 +173,30 @@ vegetation terrain snapping, and full historical asset variety remain
 outstanding. A watergate crossing may still require manual inspection
 when the river runs near a corner tower. Do not merge based on source
 changes alone: local tests and Blender/Three.js render QA are required.
+
+## Final-A/B/C implementation and Final-QA acceptance gate (2026-11-07)
+
+- Final-A: bridge abutments, parapets, posts, river-crossing wall/gate gaps.
+  Open-channel watergate remains a blockout (no stone arch).
+- Final-B: temple tower/spire/wings and larger house roof silhouettes.
+  Primitive geometry is stylized and does not assert historical fidelity.
+- Final-C: camera targets the tallest temple/market when present, and
+  enforces a minimum flyby altitude.
+- Final-QA: added deterministic unit regression assertions for bridge
+  abutments and landmark target. Blender and browser QA are **not yet run**.
+
+Run from `engines\h2-historical-world`:
+
+```cmd
+python -m unittest discover -s tests -p "test_v6_3_*.py" -v
+python tools\v6_3_scene_upgrade.py build\v6_2_scene.json build\v6_3_scene.json
+python tools\v6_3_natural_world.py build\v6_3_scene.json build\v6_3_natural.json
+"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b -t 4 --python tools\v6_2_blender_preview.py -- build\v6_3_natural.json build\v6_3_final_qa.png bright_final
+python tools\v6_3_cinematic.py plan build\v6_3_natural.json build\v6_3_camera.json --frames 240 --fps 24
+```
+
+Check the same scene in Three.js and Blender. Required signoff:
+no duplicate IDs, no floating parapets, watergate unobstructed, bridge
+abutments at riverbanks, temple silhouette visibly different, camera
+without clipping or terrain collisions. Then render frames in a clean
+folder and assemble MP4. PR remains Draft until these checks pass.
