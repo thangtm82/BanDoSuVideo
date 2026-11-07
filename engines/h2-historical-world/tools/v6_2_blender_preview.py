@@ -7,7 +7,7 @@ import math
 import sys
 from pathlib import Path
 
-def render(scene_file, output_file, lighting_preset="daylight"):
+def render(scene_file, output_file, lighting_preset="bright_final"):
     import bpy
     from mathutils import Vector
     scene_data = json.loads(Path(scene_file).read_text(encoding="utf-8"))
@@ -130,6 +130,8 @@ def render(scene_file, output_file, lighting_preset="daylight"):
                      "exposure": 0.10, "sky": (0.42, 0.57, 0.73, 1)},
         "bright": {"world": 0.65, "sun": 3.1, "fill": 18000,
                    "exposure": 0.20, "sky": (0.48, 0.62, 0.78, 1)},
+        "bright_final": {"world": 0.55, "sun": 3.0, "fill": 12000,
+                         "exposure": 0.15, "sky": (0.48, 0.62, 0.78, 1)},
         "dramatic": {"world": 0.30, "sun": 2.9, "fill": 5000,
                      "exposure": 0.0, "sky": (0.28, 0.39, 0.53, 1)},
     }
@@ -153,7 +155,7 @@ def render(scene_file, output_file, lighting_preset="daylight"):
     sun.rotation_euler = (math.radians(28), math.radians(-28), math.radians(-35))
     sun.data.energy = lighting["sun"]
     sun.data.color = (1.0, 0.91, 0.79)
-    sun.data.angle = math.radians(2.5)
+    sun.data.angle = math.radians(3.5 if lighting_preset == "bright_final" else 2.5)
     bpy.ops.object.light_add(type="AREA", location=(100, -150, 350))
     fill = bpy.context.object
     fill.name = "H2 soft fill"
@@ -180,5 +182,5 @@ def render(scene_file, output_file, lighting_preset="daylight"):
 if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--")+1:] if "--" in sys.argv else []
     if len(args) not in (2, 3):
-        raise SystemExit("Usage: blender -b --python v6_2_blender_preview.py -- scene.json output.png [daylight|bright|dramatic]")
-    render(args[0], args[1], args[2] if len(args) == 3 else "daylight")
+        raise SystemExit("Usage: blender -b --python v6_2_blender_preview.py -- scene.json output.png [bright_final|daylight|bright|dramatic]")
+    render(args[0], args[1], args[2] if len(args) == 3 else "bright_final")
