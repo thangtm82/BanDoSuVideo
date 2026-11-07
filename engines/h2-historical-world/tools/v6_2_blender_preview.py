@@ -11,6 +11,7 @@ def render(scene_file, output_file):
     import bpy
     from mathutils import Vector
     scene_data = json.loads(Path(scene_file).read_text(encoding="utf-8"))
+    env = scene_data.get("environment", {})
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete(use_global=False)
     scene = bpy.context.scene
@@ -74,7 +75,6 @@ def render(scene_file, output_file):
     ground.name = "H2 terrain blockout"
     ground.dimensions = (1200, 1200, 2)
     ground.data.materials.append(material(env.get("lighting", {}).get("ground_color", "#758265")))
-    env = scene_data.get("environment", {})
     def strip_mesh(name, points, width, color, elevation=0.12):
         """Generate a real flat ribbon mesh from Y-up path coordinates."""
         if len(points) < 2:
