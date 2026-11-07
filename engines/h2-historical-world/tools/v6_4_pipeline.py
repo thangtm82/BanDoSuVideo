@@ -102,6 +102,8 @@ def run(args):
             raise FileNotFoundError(f"Blender not found: {args.blender}")
         if not Path(args.ffmpeg).is_file() and not shutil.which(args.ffmpeg):
             raise FileNotFoundError(f"FFmpeg not found: {args.ffmpeg}")
+    if (out / "frames").exists() and any((out / "frames").glob("frame_*.png")):
+        raise RuntimeError(f"Frames folder not empty: {out / 'frames'}. Use a fresh output directory.")
     natural = build(args.scene, out, dry_run=args.dry_run)
     camera = plan(natural, out, frames=args.frames, fps=args.fps, dry_run=args.dry_run)
     folder = render(natural, camera, out, blender=args.blender,
