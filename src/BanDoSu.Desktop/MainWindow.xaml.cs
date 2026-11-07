@@ -1800,7 +1800,7 @@ public partial class MainWindow : Window
         try
         {
             var engine = ResolveWorldEngine();
-            var script = WorldScriptText.Text.Trim();
+            var script = RequireWorldProjectScript();
             if (script.Length < 10) throw new ArgumentException("Hãy nhập kịch bản tối thiểu 10 ký tự.");
             var output = WorldOutputPath.Text.Trim();
             if (!Path.IsPathRooted(output)) output = Path.Combine(engine, output);
@@ -1827,7 +1827,8 @@ public partial class MainWindow : Window
     private async void WorldAiPlanClick(object sender, RoutedEventArgs e)
     {
         if (_worldCts != null) { Alert("Đang có tác vụ Historical World."); return; }
-        var key = BuildAiRequest().ApiKey;
+        var ai = WorldAiSettings();
+        var key = ai.Key;
         if (string.IsNullOrWhiteSpace(key)) key = Environment.GetEnvironmentVariable("H2_AI_API_KEY");
         if (string.IsNullOrWhiteSpace(key))
         {
@@ -1837,9 +1838,8 @@ public partial class MainWindow : Window
         _worldCts = new CancellationTokenSource();
         try
         {
-            WorldSyncAiClick(sender, e);
             var engine = ResolveWorldEngine();
-            var script = WorldScriptText.Text.Trim();
+            var script = RequireWorldProjectScript();
             if (script.Length < 10) throw new ArgumentException("Kịch bản phải có ít nhất 10 ký tự.");
             var output = WorldOutputPath.Text.Trim();
             if (!Path.IsPathRooted(output)) output = Path.Combine(engine, output);
@@ -1855,7 +1855,7 @@ public partial class MainWindow : Window
             };
             foreach (var arg in new[] { Path.Combine(engine, "tools", "v6_4_ai_scene_plan.py"),
                 "--script", source, "--output", draft, "--endpoint",
-                WorldAiEndpoint.Text.Trim(), "--model", WorldAiModel.Text.Trim() })
+                ai.Endpoint, "--model", ai.Model })
                 start.ArgumentList.Add(arg);
             start.Environment["H2_AI_API_KEY"] = key;
             using var process = Process.Start(start) ?? throw new InvalidOperationException("Không khởi động được Python.");
@@ -1881,35 +1881,31 @@ public partial class MainWindow : Window
         finally { _worldCts?.Dispose(); _worldCts = null; }
     }
 
-    private void WorldLoadProjectScriptClick(object sender, RoutedEventArgs e)
+    private string RequireWorldProjectScript()
     {
-        if (_selected is null) { Alert("Chọn dự án trước."); return; }
+        if (_selected is null)
+            throw new InvalidOperationException("Hãy chọn dự án trước khi tạo Scene Plan.");
         var script = AiScriptEditor.Text.Trim();
         if (string.IsNullOrWhiteSpace(script))
             script = LoadIfExists(AiPath(_selected.Name, "01-SCRIPT", "txt")).Trim();
         if (string.IsNullOrWhiteSpace(script))
-            script = AiVoiceEditor.Text.Trim();
-        if (string.IsNullOrWhiteSpace(script))
-            throw new InvalidOperationException("Dự án chưa có kịch bản 01-SCRIPT hoặc 02-VOICE.");
-        WorldScriptText.Text = script;
-        WorldStatus.Text = "Đã nạp kịch bản dự án: " + _selected.Name;
+            throw new InvalidOperationException("Dự án chưa có kịch bản. Hãy tạo và lưu kịch bản tại tab AI Kịch bản trước.");
+        return script;
     }
 
-    private void WorldSyncAiClick(object sender, RoutedEventArgs e)
+    private (string Endpoint, string Model, string Key) WorldAiSettings()
     {
         var request = BuildAiRequest();
         var endpoint = request.Provider switch
         {
             AiScriptProvider.Custom => AiEndpoint.Resolve(request.BaseUrl ?? "", request.CustomEndpoint).ToString(),
             AiScriptProvider.OpenAI => "https://api.openai.com/v1/chat/completions",
-            _ => throw new NotSupportedException("Gemini native chưa hỗ trợ qua AI Scene Plan CLI; hãy chọn OpenAI hoặc Custom.")
+            _ => throw new NotSupportedException("Gemini native chưa được hỗ trợ bởi Scene Plan CLI.")
         };
         if (request.Provider == AiScriptProvider.Custom &&
             request.CustomEndpoint == AiCustomEndpoint.Responses)
-            throw new NotSupportedException("AI Scene Plan yêu cầu Chat Completions; hãy chọn endpoint tương ứng.");
-        WorldAiEndpoint.Text = endpoint;
-        WorldAiModel.Text = request.Model;
-        WorldStatus.Text = "Đã đồng bộ AI từ tab AI Kịch bản";
+            throw new NotSupportedException("Scene Plan CLI hiện yêu cầu endpoint Chat Completions.");
+        return (endpoint, request.Model, request.ApiKey);
     }
 
     private void WorldBrowseEngineClick(object sender, RoutedEventArgs e)
