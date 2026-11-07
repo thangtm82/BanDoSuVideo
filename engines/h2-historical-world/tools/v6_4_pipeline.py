@@ -87,7 +87,7 @@ def assemble(frames_dir, output_dir, *, fps=24, ffmpeg="ffmpeg",
     if not dry_run and not Path(ffmpeg).is_file() and not shutil.which(ffmpeg):
         raise FileNotFoundError(f"FFmpeg not found: {ffmpeg}")
     command([python, TOOLS / "v6_3_cinematic.py", "assemble", frames_dir, mp4,
-             "--fps", fps], dry_run=dry_run)
+             "--fps", fps, "--ffmpeg", ffmpeg], dry_run=dry_run)
     if not dry_run:
         require_file(mp4, "MP4 output")
     return mp4
