@@ -39,3 +39,40 @@ implemented.
 
 This PR is a V6.4 foundation, not a claim that the complete H2 Studio
 user-interface integration is finished.
+
+## V6.4-B: Windows render application (experimental)
+
+A runnable WinForms .NET 9 shell is included at
+`engines/h2-historical-world/integration/H2HistoricalWorld.RenderApp`.
+It calls the same Python CLI as the CMD workflow and supports stage
+progress, logs, cancellation and opening the MP4.
+
+From `engines\h2-historical-world`:
+
+```cmd
+dotnet run --project integration\H2HistoricalWorld.RenderApp\H2HistoricalWorld.RenderApp.csproj
+```
+
+Set the Scene JSON to an existing V6.2 scene (typically
+`build\v6_2_scene.json`), select Python and Blender, then choose
+Render MP4. Use a new output directory for each render. Cancel
+terminates the Python process tree. The progress UI currently reports
+stages rather than a per-frame percentage.
+
+The WinForms shell is a **standalone integration harness**, not yet
+wired into the main MAUI application. It requires Windows and the .NET 9
+desktop SDK. No binaries or third-party assets are committed.
+
+### Remaining release gates
+
+1. `python -m unittest discover -s tests -p "test_v6_*.py" -v`
+2. `dotnet build integration\H2HistoricalWorld.RenderApp\H2HistoricalWorld.RenderApp.csproj`
+3. Render 48 frames from the UI; confirm MP4 and manifest.
+4. Cancel a render in progress and verify no orphaned Blender process.
+5. Render 240 frames; compare Three.js and Blender scenes.
+6. Wire the service into the actual H2 Studio MAUI screen and validate
+   on Windows.
+7. Add AI script-to-scene conversion with a validated schema.
+
+These checks have not been run by the GitHub connector. Keep the PR in
+Draft until the remaining work is completed and validated.
