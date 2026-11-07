@@ -40,6 +40,14 @@ for(const n of world.instances){
   roof.castShadow=true;roof.receiveShadow=true;scene.add(roof);
  }
 }
+for(const d of world.details||[]){
+ const geo=d.shape==='box' ? new THREE.BoxGeometry(...d.size)
+  : new THREE.ConeGeometry(1,d.size[1],d.sides||8);
+ if(d.shape==='cone')geo.scale(d.size[0]/2,1,d.size[2]/2);
+ const obj=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:d.color,roughness:.88}));
+ obj.name=d.id;obj.position.set(...d.position);obj.rotation.y=d.rotation_y||0;
+ obj.castShadow=true;obj.receiveShadow=true;scene.add(obj);
+}
 function ribbon(points,width,color,height=.12){
  if(points.length<2)return;
  const vertices=[],indices=[];
