@@ -45,6 +45,33 @@ def upgrade(scene):
                       [1.7,h*.85,1.7], "#d4c3a2")
             place("-pediment", 0, h*.55, d*.54,
                   [w*1.05, 2.0, 2.4], "#c6b18b")
+        if kind == "temple":
+            # Distinct central landmark: steps, entrance pillars and upper tier.
+            for step in range(3):
+                place("-stair-"+str(step), 0, -h*.5+.25+step*.42,
+                      d*(.83-step*.085),
+                      [w*(1.12-step*.06),.5,d*.16], "#b9aa91")
+            for side in (-1,1):
+                place("-portico-pillar-"+str(side),side*w*.28,-h*.06,d*.67,
+                      [1.6,h*.73,1.6],"#c7b99d")
+            place("-portico-lintel",0,h*.33,d*.67,
+                  [w*.78,1.4,2.3],"#a9977e")
+            place("-roof-tier",0,h*.70,0,
+                  [w*.72,2.2,d*.65],"#8c6b51")
+        if kind == "house":
+            variant=sum(ord(ch) for ch in name)%4
+            if variant==0:
+                place("-facade-band",0,h*.20,d*.52,
+                      [w*.90,.7,.5],"#d1b395")
+            elif variant==1:
+                place("-front-stoop",0,-h*.48,d*.67,
+                      [w*.35,.55,d*.32],"#97866e")
+            elif variant==2:
+                place("-upper-window",0,h*.27,d*.515,
+                      [w*.14,h*.15,.3],"#50483e")
+            else:
+                place("-roof-crest",0,h*.72,0,
+                      [w*.55,.7,d*.12],"#a4775c")
         if kind == "market":
             place("-awning", 0, h*.12, d*.63,
                   [w*.85, .7, d*.32], "#956c4c")
