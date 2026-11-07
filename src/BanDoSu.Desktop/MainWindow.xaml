@@ -158,7 +158,30 @@
                         <TabItem Header="05 · Gói YouTube">
                             <TextBox x:Name="AiPackageEditor" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="12"/>
                         </TabItem>
-                    </TabControl>
+                        <TabItem Header="Historical World 3D">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <TextBlock Text="H2 Historical World V6.4 — Kịch bản → Scene Plan → Video" FontSize="19" FontWeight="Bold" Margin="4,4,4,12"/>
+                    <DockPanel Grid.Row="1" Margin="4"><TextBlock DockPanel.Dock="Left" Width="120" Text="Engine folder"/><TextBox x:Name="WorldEnginePath" Text="engines/h2-historical-world"/></DockPanel>
+                    <DockPanel Grid.Row="2" Margin="4"><TextBlock DockPanel.Dock="Left" Width="120" Text="Scene JSON"/><TextBox x:Name="WorldScenePath" Text="build/v6_2_scene.json"/></DockPanel>
+                    <DockPanel Grid.Row="3" Margin="4"><TextBlock DockPanel.Dock="Left" Width="120" Text="Blender.exe"/><TextBox x:Name="WorldBlenderPath" Text="C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"/></DockPanel>
+                    <DockPanel Grid.Row="4" Margin="4"><TextBlock DockPanel.Dock="Left" Width="120" Text="Output folder"/><TextBox x:Name="WorldOutputPath" Text="build/v6_4_studio"/></DockPanel>
+                    <WrapPanel Grid.Row="5" Margin="4">
+                        <TextBlock Text="Frames" VerticalAlignment="Center"/><TextBox x:Name="WorldFrames" Width="65" Text="48" Margin="8,0,18,0"/>
+                        <TextBlock Text="FPS" VerticalAlignment="Center"/><TextBox x:Name="WorldFps" Width="55" Text="24" Margin="8,0,18,0"/>
+                        <Button x:Name="WorldRenderButton" Content="Render MP4" Click="WorldRenderClick" Padding="12,6"/>
+                        <Button Content="Hủy" Click="WorldCancelClick" Padding="12,6" Margin="8,0"/>
+                        <Button Content="Mở MP4" Click="WorldOpenMp4Click" Padding="12,6"/>
+                        <TextBlock x:Name="WorldStatus" Text="Sẵn sàng" Margin="12,5"/>
+                    </WrapPanel>
+                    <StackPanel Grid.Row="6" Margin="4">
+                        <TextBlock Text="Kịch bản lịch sử (nhập mô tả hoặc dán bản nháp Scene Plan JSON)" FontWeight="SemiBold"/>
+                        <Button Content="Tạo Scene Plan nháp (cần duyệt)" Click="WorldPlanClick" HorizontalAlignment="Left" Margin="0,5" Padding="12,5"/>
+                    </StackPanel>
+                    <TextBox Grid.Row="7" x:Name="WorldScriptText" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="4"/>
+                </Grid>
+            </TabItem>
+        </TabControl>
                     <StackPanel Grid.Row="5" Margin="4,8">
                         <TextBlock x:Name="AiStatus" TextWrapping="Wrap" Text="Chọn một dự án ở tab Dự án, nhập API key, rồi bấm Tạo kịch bản bằng AI."/>
                         <TextBlock Margin="0,5,0,0" Foreground="#A84B22" TextWrapping="Wrap" Text="Ghi chú: AI hiện không có tính năng tra cứu hoặc xác minh nguồn tự động. Số liệu, nguồn, năm và tọa độ cần người dùng kiểm chứng. API key không được lưu vào settings.json."/>
