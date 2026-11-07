@@ -43,3 +43,36 @@ Three.js: `http://localhost:8765/tools/v6_2_preview.html?scene=/build/v6_3_scene
 ## Release gate
 
 Do not mark ready or merge until V6.3b/c are implemented and tests/render evidence reviewed. No automated Blender or browser render was executed by this GitHub-only implementation.
+
+## V6.3b/c experimental implementation (added)
+
+The first V6.3b/c code slices are committed, but **not yet fully production-ready**:
+- `tools/v6_3_natural_world.py`: shared regular-grid heightfield, river depression and simple bridge deck. Both V6.2 renderers now accept `environment.terrain_mesh`.
+- `tools/v6_3_cinematic.py`: deterministic orbital camera plan and FFmpeg MP4 assembly.
+- `tools/v6_3_blender_animation.py`: renders sequential PNG frames using the same scene as the Blender still renderer.
+- `tests/test_v6_3_natural_cinematic.py`: geometry and cinematic planning regression tests.
+
+### Windows end-to-end commands
+
+From `engines\h2-historical-world` after running the V6.3a commands above:
+
+```cmd
+python tools\v6_3_natural_world.py build\v6_3_scene.json build\v6_3_natural.json
+python tools\v6_2_validate_scene.py build\v6_3_natural.json
+python -m unittest discover -s tests -p "test_v6_3_*.py" -v
+"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b -t 4 --python tools\v6_2_blender_preview.py -- build\v6_3_natural.json build\v6_3_natural.png bright_final
+python tools\v6_3_cinematic.py plan build\v6_3_natural.json build\v6_3_camera.json --frames 120 --fps 24
+"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b -t 4 --python tools\v6_3_blender_animation.py -- build\v6_3_natural.json build\v6_3_camera.json build\v6_3_frames bright_final
+python tools\v6_3_cinematic.py assemble build\v6_3_frames build\v6_3_cinematic.mp4 --fps 24
+```
+
+Three.js scene: `http://localhost:8765/tools/v6_2_preview.html?scene=/build/v6_3_natural.json` after `python -m http.server 8765`.
+
+### Known limitations
+
+- Bridge deck is an approximate primitive at the middle river point, not guaranteed to coincide with a road crossing; gate/wall and river collisions remain.
+- Roads are still planar overlays and can intersect new hills; vegetation is not yet terrain-snapped.
+- River surface remains a flat ribbon, not a fully conforming water body.
+- Three.js camera path playback is not yet implemented; use the Blender renderer for animation.
+- Blender animation renders a setup still before the frames, adding overhead.
+- The pipeline has not been executed in a Blender/FFmpeg environment by the GitHub connector. Verify visually and run all tests before marking PR ready.
