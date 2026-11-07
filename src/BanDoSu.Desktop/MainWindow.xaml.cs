@@ -1767,15 +1767,17 @@ public partial class MainWindow : Window
     private async void WorldAiPlanClick(object sender, RoutedEventArgs e)
     {
         if (_worldCts != null) { Alert("Đang có tác vụ Historical World."); return; }
-        var key = Environment.GetEnvironmentVariable("H2_AI_API_KEY");
+        var key = BuildAiRequest().ApiKey;
+        if (string.IsNullOrWhiteSpace(key)) key = Environment.GetEnvironmentVariable("H2_AI_API_KEY");
         if (string.IsNullOrWhiteSpace(key))
         {
-            Alert("Cần đặt biến môi trường H2_AI_API_KEY trước khi dùng AI Scene Plan. Không lưu API key vào dự án.");
+            Alert("Nhập API key tại tab AI Kịch bản hoặc cấu hình H2_AI_API_KEY. Không lưu API key vào dự án.");
             return;
         }
         _worldCts = new CancellationTokenSource();
         try
         {
+            WorldSyncAiClick(sender, e);
             var engine = ResolveWorldEngine();
             var script = WorldScriptText.Text.Trim();
             if (script.Length < 10) throw new ArgumentException("Kịch bản phải có ít nhất 10 ký tự.");
