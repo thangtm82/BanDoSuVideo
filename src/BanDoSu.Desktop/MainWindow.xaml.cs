@@ -1695,6 +1695,61 @@ public partial class MainWindow : Window
         throw new DirectoryNotFoundException("Không tìm thấy engine V6.4. Hãy nhập đường dẫn tuyệt đối.");
     }
 
+    private int WorldProjectMinutes()
+    {
+        var minutes = int.TryParse((AiDurationInput.SelectedItem as ComboBoxItem)?.Tag?.ToString(),
+            out var value) ? value : 12;
+        if (minutes < 1 || minutes > 240) throw new ArgumentOutOfRangeException(nameof(minutes));
+        return minutes;
+    }
+
+    private void WorldDurationChanged(object sender, RoutedEventArgs e)
+    {
+        if (WorldFrames == null || WorldFps == null || WorldUseProjectDuration == null) return;
+        WorldFrames.IsReadOnly = WorldUseProjectDuration.IsChecked == true;
+        if (WorldUseProjectDuration.IsChecked == true)
+        {
+            if (!int.TryParse(WorldFps.Text, out var fps) || fps < 1) fps = 24;
+            WorldFrames.Text = checked(WorldProjectMinutes() * 60 * fps).ToString();
+        }
+    }
+
+    private async void WorldTimelineClick(object sender, RoutedEventArgs e)
+    {
+        if (_worldCts != null) { Alert("Đang có tác vụ Historical World."); return; }
+        try
+        {
+            var engine = ResolveWorldEngine();
+            var output = WorldOutputPath.Text.Trim();
+            if (!Path.IsPathRooted(output)) output = Path.Combine(engine, output);
+            var draft = Path.Combine(output, "v6_4_scene_plan_ai_draft.json");
+            if (!File.Exists(draft)) throw new FileNotFoundException("Hãy tạo AI Scene Plan trước.", draft);
+            if (!int.TryParse(WorldFps.Text, out var fps) || fps < 1)
+                throw new ArgumentException("FPS không hợp lệ.");
+            var timeline = Path.Combine(output, "v6_4_timeline.json");
+            var start = new ProcessStartInfo(_settings.PythonExecutable)
+            {
+                UseShellExecute = false, RedirectStandardOutput = true,
+                RedirectStandardError = true, CreateNoWindow = true, WorkingDirectory = engine
+            };
+            foreach (var arg in new[] { Path.Combine(engine, "tools", "v6_4_timeline.py"),
+                "--plan", draft, "--minutes", WorldProjectMinutes().ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "--fps", fps.ToString(), "--output", timeline }) start.ArgumentList.Add(arg);
+            using var process = Process.Start(start) ?? throw new InvalidOperationException("Không khởi động được Python.");
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            var err = await stderr;
+            if (process.ExitCode != 0) throw new InvalidOperationException(err);
+            Log(await stdout);
+            WorldDurationChanged(sender, e);
+            WorldStatus.Text = "Đã đồng bộ timeline — chưa có scene compiler";
+            Alert("Đã tạo timeline theo thời lượng dự án: " + timeline +
+                  "\\nChưa thể render 24 cảnh AI: cần scene compiler và duyệt lịch sử.");
+        }
+        catch (Exception ex) { WorldStatus.Text = "Timeline thất bại"; Log(ex.ToString()); Alert(ex.Message); }
+    }
+
     private async void WorldRenderClick(object sender, RoutedEventArgs e)
     {
         if (_worldCts != null || _operation != null) { Alert("Đang có tác vụ khác chạy."); return; }
@@ -1708,7 +1763,7 @@ public partial class MainWindow : Window
             if (!Path.IsPathRooted(scene)) scene = Path.Combine(engine, scene);
             var output = WorldOutputPath.Text.Trim();
             if (!Path.IsPathRooted(output)) output = Path.Combine(engine, output);
-            if (!int.TryParse(WorldFrames.Text, out var frameCount) || frameCount < 2 ||
+            if (WorldUseProjectDuration.IsChecked == true)\n            {\n                WorldDurationChanged(sender, e);\n                throw new InvalidOperationException("Chế độ theo thời lượng dự án chỉ tạo timeline, chưa render được Scene Plan đa cảnh. Bấm Đồng bộ timeline Scene Plan; muốn test một cảnh, bỏ chọn Theo thời lượng dự án.");\n            }\n            if (!int.TryParse(WorldFrames.Text, out var frameCount) || frameCount < 2 ||
                 !int.TryParse(WorldFps.Text, out var fps) || fps < 1)
                 throw new ArgumentException("Frames >= 2 và FPS >= 1.");
             var pipeline = Path.Combine(engine, "tools", "v6_4_pipeline.py");
