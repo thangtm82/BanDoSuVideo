@@ -11,6 +11,10 @@ from pathlib import Path
 def main(scene_file, plan_file, frames_dir, preset="bright_final"):
     import bpy
     from mathutils import Vector
+    # Blender does not automatically add the --python script directory to sys.path.
+    tools_dir = str(Path(__file__).resolve().parent)
+    if tools_dir not in sys.path:
+        sys.path.insert(0, tools_dir)
     from v6_2_blender_preview import render
     folder=Path(frames_dir).resolve()
     folder.mkdir(parents=True,exist_ok=True)
