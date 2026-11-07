@@ -17,17 +17,39 @@ def camera_path(scene, frames=120, fps=24):
     base=cameras[0] if cameras else {"position":[520,260,500],"target":[0,0,0],"fov":45}
     start=base["position"]
     target=base["target"]
-    # Gentle orbit around the target; maintain radius and elevation.
+    # Three continuous phases: establishing orbit, dolly-in, close fly-by.
+    # Smoothstep avoids abrupt speed changes at phase boundaries.
     dx,dz=start[0]-target[0],start[2]-target[2]
     radius=math.hypot(dx,dz)
     initial=math.atan2(dz,dx)
+    def smooth(t):
+        t=max(0.,min(1.,t))
+        return t*t*(3-2*t)
     shots=[]
     for frame in range(frames):
         t=frame/(frames-1)
-        angle=initial+(t-.5)*math.radians(24)
-        shots.append({"frame":frame+1,"position":[round(target[0]+radius*math.cos(angle),4),
-                       round(start[1]+12*math.sin(math.pi*t),4),
-                       round(target[2]+radius*math.sin(angle),4)],
+        if t < .38:
+            phase="establishing"
+            u=smooth(t/.38)
+            distance=radius*(1-.13*u)
+            angle=initial+math.radians(-16+20*u)
+            elevation=start[1]+12*u
+        elif t < .76:
+            phase="approach"
+            u=smooth((t-.38)/.38)
+            distance=radius*(.87-.37*u)
+            angle=initial+math.radians(4+13*u)
+            elevation=start[1]+12-75*u
+        else:
+            phase="flyby"
+            u=smooth((t-.76)/.24)
+            distance=radius*(.50-.08*u)
+            angle=initial+math.radians(17+20*u)
+            elevation=start[1]-63-12*u
+        shots.append({"frame":frame+1,"phase":phase,
+                      "position":[round(target[0]+distance*math.cos(angle),4),
+                                  round(elevation,4),
+                                  round(target[2]+distance*math.sin(angle),4)],
                       "target":target,"fov":base.get("fov",45)})
     return {"schema":"h2.historical_world.cinematic.v6.3",
             "fps":fps,"frames":frames,"shots":shots}
