@@ -40,6 +40,8 @@ class WorldTests(unittest.TestCase):
         self.assertEqual(upgraded["details"][0]["id"],"v6_3_bridge_0")
         self.assertAlmostEqual(upgraded["details"][0]["position"][0],0)
         self.assertAlmostEqual(upgraded["details"][0]["position"][2],0)
+        self.assertEqual(len([d for d in upgraded["details"] if "parapet" in d["id"]]),2)
+        self.assertEqual(len([d for d in upgraded["details"] if "-post-" in d["id"]]),4)
     def test_no_decorative_bridge_without_road(self):
         self.assertFalse(natural.upgrade(self.scene(),resolution=9)["environment"]["bridge_crossings"])
     def test_watergate_cuts_wall_geometry(self):
@@ -56,6 +58,18 @@ class WorldTests(unittest.TestCase):
         self.assertEqual(len(upgraded["instances"]),2)
         self.assertFalse(any(d["id"]=="wall-cross-merlon-0" for d in upgraded["details"]))
         self.assertAlmostEqual(sum(w["dimensions"][0] for w in upgraded["instances"]),80.0)
+    def test_gate_crossing_removes_fake_arch_decal(self):
+        scene=self.scene()
+        scene["instances"]=[{"id":"gate-water","kind":"gate",
+            "position":[0,9,0],"dimensions":[80,18,9],
+            "rotation_y":0.0,"color":"#b8a78c","roof":{"style":"none"}}]
+        scene["details"]=[{"id":"gate-water-arch-dark","shape":"box",
+            "position":[0,4,4.5],"size":[12,8,.35],"color":"#514c42"}]
+        scene["environment"]["river"]["points"]=[[0,0,-100],[0,0,100]]
+        upgraded=natural.upgrade(scene,resolution=9)
+        self.assertEqual(len(upgraded["instances"]),2)
+        self.assertNotIn("gate-water-arch-dark",[d["id"] for d in upgraded["details"]])
+        self.assertTrue(upgraded["environment"]["watergate_review_required"])
     def test_bad_inputs(self):
         with self.assertRaises(ValueError): natural.upgrade(self.scene(),resolution=10)
         scene=self.scene();scene["environment"]["river"]["points"]=[]
