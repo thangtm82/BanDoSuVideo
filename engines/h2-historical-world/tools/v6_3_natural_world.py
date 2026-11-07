@@ -89,7 +89,61 @@ def upgrade(scene, resolution=49, extent=600):
     env["bridge_crossings"]=[{"x":round(h[0],4),"z":round(h[1],4)}
                              for h in intersections]
     # Mark unresolved river/wall conflicts for a later gate-cutout geometry pass.
-    env["river_wall_intersections_unresolved"]=True
+    # Cut physical openings in wall spans intersected by the river.
+    # Each wall is oriented along its local X axis. Split into two shorter
+    # cuboids, leaving a gap wider than the water. No fake dark decal.
+    # Existing wall battlements are removed/rebuilt to match new spans.
+    walls=[]
+    cut_ids=set()
+    gap=width+6.0
+    for wall in result["instances"]:
+        if wall.get("kind")!="wall":
+            walls.append(wall)
+            continue
+        x,y,z=wall["position"]
+        length,height,depth=wall["dimensions"]
+        angle=float(wall.get("rotation_y",0))
+        ux,uz=math.cos(angle),-math.sin(angle)
+        a=[x-ux*length/2,0,z-uz*length/2]
+        b=[x+ux*length/2,0,z+uz*length/2]
+        hits=[crossing(a,b,c,d) for c,d in zip(points,points[1:])]
+        hits=[h for h in hits if h is not None]
+        if not hits:
+            walls.append(wall)
+            continue
+        hit=min(hits,key=lambda h:math.hypot(h[0]-x,h[1]-z))
+        offset=(hit[0]-x)*ux+(hit[1]-z)*uz
+        left_end=max(-length/2,min(length/2,offset-gap/2))
+        right_start=max(-length/2,min(length/2,offset+gap/2))
+        spans=[(-length/2,left_end),(right_start,length/2)]
+        cut_ids.add(wall["id"])
+        for side,(lo,hi) in enumerate(spans):
+            span=hi-lo
+            if span<1.0:
+                continue
+            mid=(lo+hi)/2
+            piece=json.loads(json.dumps(wall))
+            piece["id"]=wall["id"]+"-watergate-"+str(side)
+            piece["position"]=[round(x+ux*mid,4),y,round(z+uz*mid,4)]
+            piece["dimensions"][0]=round(span,4)
+            walls.append(piece)
+            # New battlements sit on the shortened wall segment.
+            count=max(1,int(span//5))
+            for k in range(count):
+                along=(k-(count-1)/2)*span/count
+                details.append({"id":piece["id"]+"-merlon-"+str(k),
+                    "shape":"box",
+                    "position":[round(piece["position"][0]+ux*along,4),
+                                round(y+height/2+1.3,4),
+                                round(piece["position"][2]+uz*along,4)],
+                    "size":[round(span/count*.55,4),2.6,3.5],
+                    "color":"#b2a38d","rotation_y":angle,"sides":8})
+    if cut_ids:
+        details[:]=[d for d in details if not any(
+            d["id"].startswith(wid+"-merlon-") for wid in cut_ids)]
+    result["instances"]=walls
+    env["watergate_cut_wall_ids"]=sorted(cut_ids)
+    env["river_wall_intersections_unresolved"]=False if cut_ids else True
     result["version_note"]="V6.3b terrain mesh and road-aligned bridge crossings"
     return result
 
