@@ -1732,7 +1732,7 @@ public partial class MainWindow : Window
                 UseShellExecute = false, RedirectStandardOutput = true,
                 RedirectStandardError = true, CreateNoWindow = true, WorkingDirectory = engine
             };
-            foreach (var arg in new[] { Path.Combine(engine, "tools", "v6_4_timeline.py"),
+            foreach (var arg in new[] { Path.Combine(engine, "tools", "v6_4_audio_timeline.py"),
                 "--plan", draft, "--minutes", WorldProjectMinutes().ToString(System.Globalization.CultureInfo.InvariantCulture),
                 "--fps", fps.ToString(), "--output", timeline }) start.ArgumentList.Add(arg);
             using var process = Process.Start(start) ?? throw new InvalidOperationException("Không khởi động được Python.");
@@ -1743,7 +1743,7 @@ public partial class MainWindow : Window
             if (process.ExitCode != 0) throw new InvalidOperationException(err);
             Log(await stdout);
             WorldDurationChanged(sender, e);
-            WorldStatus.Text = "Đã đồng bộ timeline — chưa có scene compiler";
+            WorldStatus.Text = "Timeline: audio ưu tiên, text dự phòng — chưa có scene compiler";
             Alert("Đã tạo timeline theo thời lượng dự án: " + timeline +
                   "\\nChưa thể render 24 cảnh AI: cần scene compiler và duyệt lịch sử.");
         }
