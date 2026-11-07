@@ -50,7 +50,7 @@ class PipelineTests(unittest.TestCase):
                 (folder/"frame_00002.png").write_bytes(b"new")
             runner.side_effect=make_frames
             result=pipeline.render(natural,camera,d,blender="blender",clean_frames=True)
-            self.assertEqual(result,folder)
+            self.assertTrue(result.samefile(folder))
             self.assertEqual(stale.read_bytes(),b"new")
     def test_prevent_mixed_frames(self):
         with tempfile.TemporaryDirectory() as d:
