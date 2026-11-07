@@ -42,6 +42,7 @@ class WorldTests(unittest.TestCase):
         self.assertAlmostEqual(upgraded["details"][0]["position"][2],0)
         self.assertEqual(len([d for d in upgraded["details"] if "parapet" in d["id"]]),2)
         self.assertEqual(len([d for d in upgraded["details"] if "-post-" in d["id"]]),4)
+        self.assertEqual(len([d for d in upgraded["details"] if "-abutment-" in d["id"]]),2)
     def test_no_decorative_bridge_without_road(self):
         self.assertFalse(natural.upgrade(self.scene(),resolution=9)["environment"]["bridge_crossings"])
     def test_watergate_cuts_wall_geometry(self):
@@ -88,6 +89,13 @@ class WorldTests(unittest.TestCase):
         self.assertLess(math.dist(shots[-1]["position"],shots[-1]["target"]),
                         math.dist(shots[0]["position"],shots[0]["target"]))
         self.assertTrue(all(shots[i]["frame"] == i+1 for i in range(120)))
+    def test_camera_targets_landmark(self):
+        scene=self.scene()
+        scene["instances"]=[{"id":"temple","kind":"temple",
+            "position":[35,10,-20],"dimensions":[30,30,30]}]
+        shots=cinema.camera_path(scene,frames=120)["shots"]
+        self.assertEqual(shots[0]["target"],[35,17.5,-20])
+        self.assertGreaterEqual(min(s["position"][1] for s in shots),52.5)
     def test_assemble_requires_frames(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(FileNotFoundError):
