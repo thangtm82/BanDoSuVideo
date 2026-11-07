@@ -72,6 +72,26 @@ def upgrade(scene):
             else:
                 place("-roof-crest",0,h*.72,0,
                       [w*.55,.7,d*.12],"#a4775c")
+        # Large silhouettes remain readable in a wide 720p establishing shot.
+        # Roof towers use the shared cone primitive (Y-up, rotation around Y).
+        if kind == "temple":
+            place("-landmark-tower", 0, h*.97, -d*.12,
+                  [max(5,w*.26),h*.80,max(5,d*.26)], "#c5b79b")
+            place("-landmark-spire", 0, h*1.53, -d*.12,
+                  [max(7,w*.37),h*.45,max(7,d*.37)], "#895f47", "cone")
+            for side in (-1,1):
+                place("-wing-"+str(side),side*w*.65,-h*.20,0,
+                      [w*.34,h*.60,d*.70],"#c2b295")
+        if kind == "house":
+            # Alternating roof silhouettes, not merely facade pixels.
+            variant=sum(ord(ch) for ch in name)%4
+            if variant in (0,2):
+                place("-gable",0,h*.61,0,
+                      [w*.95,max(2,h*.42),d*.86],
+                      "#9e674c","cone" if variant==0 else "box")
+            else:
+                place("-roof-tower",w*.20,h*.68,-d*.12,
+                      [w*.27,h*.40,d*.30],"#a87a5c")
         if kind == "market":
             place("-awning", 0, h*.12, d*.63,
                   [w*.85, .7, d*.32], "#956c4c")
