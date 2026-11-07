@@ -108,6 +108,17 @@ def upgrade(scene, resolution=49, extent=600):
                     "shape":"box","position":[round(px,4),3.7,round(pz,4)],
                     "size":[1.3,2.5,1.3],"color":"#a99b83",
                     "rotation_y":road_angle,"sides":4})
+    # Raised stone abutments and riverbank retaining blocks at each crossing.
+    for i,(x,z,rx,rz,sx,sz) in enumerate(intersections):
+        angle=math.atan2(-rz,rx)
+        ux,uz=math.cos(angle),-math.sin(angle)
+        for side in (-1,1):
+            offset=side*(width/2+3.5)
+            details.append({"id":f"v6_3_bridge_{i}-abutment-{side}",
+                "shape":"box",
+                "position":[round(x+ux*offset,4),.8,round(z+uz*offset,4)],
+                "size":[4.0,3.2,10.0],"color":"#978d7c",
+                "rotation_y":angle,"sides":4})
     env["bridge_crossings"]=[{"x":round(h[0],4),"z":round(h[1],4)}
                              for h in intersections]
     # Mark unresolved river/wall conflicts for a later gate-cutout geometry pass.
