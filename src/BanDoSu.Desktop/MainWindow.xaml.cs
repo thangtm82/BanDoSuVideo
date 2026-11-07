@@ -1763,7 +1763,10 @@ public partial class MainWindow : Window
             if (!Path.IsPathRooted(scene)) scene = Path.Combine(engine, scene);
             var output = WorldOutputPath.Text.Trim();
             if (!Path.IsPathRooted(output)) output = Path.Combine(engine, output);
-            if (WorldUseProjectDuration.IsChecked == true)\n            {\n                WorldDurationChanged(sender, e);\n                throw new InvalidOperationException("Chế độ theo thời lượng dự án chỉ tạo timeline, chưa render được Scene Plan đa cảnh. Bấm Đồng bộ timeline Scene Plan; muốn test một cảnh, bỏ chọn Theo thời lượng dự án.");
+            if (WorldUseProjectDuration.IsChecked == true)
+            {
+                WorldDurationChanged(sender, e);
+                throw new InvalidOperationException("Chế độ theo thời lượng dự án chỉ tạo timeline, chưa render được Scene Plan đa cảnh. Bấm Đồng bộ timeline Scene Plan; muốn test một cảnh, bỏ chọn Theo thời lượng dự án.");
             }
             if (!int.TryParse(WorldFrames.Text, out var frameCount) || frameCount < 2 ||
                 !int.TryParse(WorldFps.Text, out var fps) || fps < 1)
